@@ -3,7 +3,11 @@ package info.kwarc.probgen
 object Test {
   def main(args: Array[String]): Unit = {
     val p = SearchProblemGenerator.make()
-    val s = p.toSTeX
-    println(s)
+    if (p != null) {
+      val subs = p.chooseSubproblems()
+      val stex = p.toSTeX(subs)
+      println(stex)
+
+    }
   }
 }

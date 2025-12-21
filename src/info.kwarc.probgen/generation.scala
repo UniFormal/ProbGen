@@ -87,6 +87,15 @@ object Generator {
     val n = Random.nextInt(options.length)
     options(n)
   }
+  def chooseSome[A](options: List[A], atLeast: Int, atMost: Int) = {
+    val num = choose(Range(atLeast,atMost+1).toList)
+    var choices: List[A] = Nil
+    do {
+      val c = choose(options)
+      if (!choices.contains(c)) choices ::= c
+    } while (choices.length < num)
+    choices
+  }
   def chooseBoolean(prob: Double): Boolean = {
     val r = Random.nextFloat()
     r <= prob

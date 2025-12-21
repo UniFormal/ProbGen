@@ -1,11 +1,17 @@
 package info.kwarc.probgen
 
-trait STeXSyntax {
-  def toSTeX: String
+/** mixin for objects that can be rendered as STeX */
+trait STeXAble {
+  def toSTeX: STeXSyntax
+}
+
+/** parent type of all stex syntax */
+trait STeXSyntax extends STeXAble {
+  def toSTeX = this
 }
 
 case class SParams(pars: (String,String)*) extends STeXSyntax {
-  def toSTeX = {
+  override def toString = {
     if (pars.isEmpty) "" else
       pars.map {case (key,value) => s"$key={$value}"}.mkString("[", ", ", "]")
   }
@@ -15,9 +21,9 @@ abstract class SEnvironment(name: String) extends STeXSyntax {
   def args: List[String] = Nil
   def params: SParams = SParams()
   def body: List[STeXSyntax]
-  def toSTeX = {
+  override def toString = {
     val argsS = args.map(a => s"{$a}").mkString("")
-    s"\\begin{$name}$argsS${params.toSTeX}\n${body.map(_.toSTeX).mkString("\n")}\n\\end{$name}"
+    s"\\begin{$name}$argsS${params}\n${body.mkString("\n")}\n\\end{$name}"
   }
 }
 
@@ -31,7 +37,7 @@ case class SProblem(intro: STeXSyntax, subproblems: List[SSubproblem]) extends S
   def body = intro::subproblems
 }
 
-case class SSubproblem(pts: Int, question: SText, solution: SSolution) extends SEnvironment("solution") {
+case class SSubproblem(pts: Int, question: SText, solution: SSolution) extends SEnvironment("subproblem") {
   override def params = SParams("pts" -> pts.toString)
   def body = List(question, solution)
 }
@@ -44,27 +50,32 @@ abstract class SList(n: String, val body: List[SItem]) extends SEnvironment(n)
 case class SItemize(items: SItem*) extends SList("itemize", items.toList)
 case class SEnumerate(items: SItem*) extends SList("enumerate", items.toList)
 case class SItem(body: SText) extends STeXSyntax {
-  def toSTeX = "\\item " + body.toSTeX + "\\n"
+  override def toString = "\\item " + body
 }
 
 trait SText extends STeXSyntax
 
 case class SMath(body: SText) extends SText {
-  def toSTeX = "$" + body.toSTeX + "$"
+  override def toString = "$" + body.toString.replace("$","") + "$"
 }
 
-case class SSnippet(body: List[STeXSyntax]) extends SText {
-  override def toSTeX = body.map(_.toSTeX).mkString("")
+/* comma-separated sequence of math objects */
+case class SMaths(body: List[SText]) extends SText {
+  override def toString = body.map(b => SMath(b).toString).mkString(", ")
+}
+
+case class SSnippet(body: List[STeXSyntax], sep: String = "") extends SText {
+  override def toString = body.mkString(sep)
 }
 
 case class SPlainText(body: String) extends SText {
-  def toSTeX = body
+  override def toString = body
 }
 
 case class SMacroApplication(name: String, args: List[SText], flexary: Boolean) extends SText {
-  override def toSTeX = {
+  override def toString = {
     val command = "\\" + name
-    val argsX = args.map(_.toSTeX)
+    val argsX = args.map(_.toString)
     val argsS = if (flexary) argsX.mkString("{",",","}")
       else argsX.map(s => "{" + s + "}").mkString("")
     command + argsS
@@ -79,18 +90,26 @@ object SText {
   implicit class STextInterpolator(sc: StringContext) {
     def x(args: Any*): SText = {
       val partsS = sc.parts.toList.map {s =>
-        val sR = s.replace('§', '$')
+        val sR = s.replace('§', '$').replace("\\n","\n")
         SPlainText(sR)
       }
-      val argsS = args.map {
-        case e: Expr => e.toSTeX
-        case sx: STeXSyntax => sx
+      val argsS = args.toList.map {
+        case sx: STeXAble => sx.toSTeX
+        case sx: List[_] if sx.forall(_.isInstanceOf[STeXAble]) =>
+          SSnippet(sx.map(_.asInstanceOf[STeXAble].toSTeX), ", ")
+        case s: String => apply(s)
+        case a => Expr.fromAnyO(a) match {
+          case Some(e) => e.toSTeXTop
+        }
       }
-      SSnippet(partsS.head :: partsS.tail.zip(argsS).flatMap {case (p,s) => List(p,s)})
+      val pairs = argsS.zip(partsS.tail)
+      val snippets = pairs.flatMap {case (s,p) => List(s,p)}
+      SSnippet(partsS.head :: snippets)
     }
   }
 
-  def apply(args: STeXSyntax*) = SSnippet(args.toList)
+  def apply(args: STeXSyntax*): SText = SSnippet(args.toList)
+  def apply(s: String): SText = SPlainText(s)
   implicit def fromInt(i: Int) = SPlainText(i.toString)
   def !(s: String) = SPlainText(s)
 }

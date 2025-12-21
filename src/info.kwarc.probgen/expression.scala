@@ -1,5 +1,7 @@
 package info.kwarc.probgen
 
+import info.kwarc.probgen
+
 case class Context(vals: List[(String,Int)]) {
   def apply(n: String) = vals.find(_._1 == n).get._2
   def apply(v: (String,Int)): Context = Context(v::vals)
@@ -13,6 +15,21 @@ sealed abstract class Expr {
   def toSTeXTop = SMath(toSTeX)
 }
 
+object Expr {
+  def fromInt(i: Int) = Lit(i)
+
+  def fromAnyO(a: Any): Option[Expr] = {
+    try {Some(fromAny(a))}
+    catch {case e: Error => None}
+  }
+  def fromAny(a: Any): Expr = a match {
+    case e: Expr => e
+    case i: Int => Lit(i)
+    case l: List[_] => FinSeq(l.map(fromAny):_*)
+    case t: Tuple2[_,_] => Tuple(t.productIterator.toList.map(fromAny):_*)
+  }
+}
+
 sealed trait OperApply {
   def op: Oper
   def args: List[Expr]
@@ -21,8 +38,8 @@ sealed trait OperApply {
     SMacroApplication(op.stexname, argsS, op.flexary)
   }
   override def toString = {
-    if (args.length == 2) {
-      "(" + args(0) + " " + op + " " + args(1) + ")"
+    if (!op.isInstanceOf[OtherOper] && args.length >= 2) {
+      args.mkString("(", " " + op + " ", ")")
     } else {
       op + args.mkString("(", ",", ")")
     }
@@ -46,9 +63,6 @@ case class Lit(value: Int) extends Term {
 
 abstract class OtherExpr extends Expr
 case class OtherApply(op: OtherOper, args: List[Expr]) extends Expr with OperApply
-case object Ellipsis {
-  def toSTeX = "\\ldots"
-}
 
 sealed abstract class Oper {
   override def toString = stexname
@@ -59,20 +73,25 @@ sealed abstract class Oper {
 }
 
 sealed abstract class FOper(val stexname: String, val flexary: Boolean) extends Oper {
+  def apply(args: Term*) = Pred(this, args.toList)
   def unapply(f: Form) = f match {
     case Pred(op,as) if op == this => Some(as)
     case _ => None
   }
 }
 
-sealed abstract class TOper(val stexname: String, val flexary: Boolean) extends Oper {
+sealed abstract class TOper(val stexname: String, val flexary: Boolean, val arity: Option[Int] = None) extends Oper {
+  def apply(args: Term*) = Apply(this, args.toList)
   def unapply(f: Term) = f match {
     case Apply(op,as) if op == this => Some(as)
     case _ => None
   }
+  override def minArity = arity
+  override def maxArity = arity
 }
 
 sealed abstract class COper(val stexname: String, val flexary: Boolean) extends Oper {
+  def apply(args: Form*) = Conn(this, args.toList)
   def unapply(f: Form) = f match {
     case Conn(op,as) if op == this => Some(as)
     case _ => None
@@ -80,7 +99,8 @@ sealed abstract class COper(val stexname: String, val flexary: Boolean) extends 
 }
 
 sealed abstract class OtherOper(val stexname: String, val flexary: Boolean) extends Oper {
-  def apply(args: Expr*) = OtherApply(this, args.toList)
+  def apply(args: Expr*): Expr = OtherApply(this, args.toList)
+  def apply(is: List[Int]): Expr = apply(is.map(Lit):_*)
   def unapply(f: Expr) = f match {
     case OtherApply(op,as) if op == this => Some(as)
     case _ => None
@@ -88,7 +108,7 @@ sealed abstract class OtherOper(val stexname: String, val flexary: Boolean) exte
 }
 
 object FOper {
-  val all = List(Equals, NotEquals, Less, LessEq)
+  val all = List(Equals, NotEquals, Less, LessEq, Divides)
 }
 object TOper {
   val all = List(Plus,Times,Minus,Exp)
@@ -105,14 +125,27 @@ object Equals extends ChainedFOper("equals", false)
 object NotEquals extends FOper("nequals", false)
 object Less extends ChainedFOper("intless", false)
 object LessEq extends ChainedFOper("intle", false)
+object Divides extends ChainedFOper("divides", false)
 
 object Plus extends TOper("intplus", true)
-object Minus extends TOper("intminus", true)
+object Minus extends TOper("intminus", true, Some(2))
 object Times extends TOper("inttimes", true)
-object Exp extends TOper("intpower", true)
+object Exp extends TOper("intpower", true, Some(2))
+object Mod extends TOper("intmod", false, Some(2))
+object Min extends TOper("intmin", true) {
+  override def minArity = Some(2)
+}
+object Max extends TOper("intmax", true) {
+  override def minArity = Some(2)
+}
 
 object FinSet extends OtherOper("set", true)
 object Tuple extends OtherOper("tup", true)
+object FinSeq extends OtherOper("seq", true)
+object InSet extends OtherOper("inset", false)
+case class GivenBy(name: String, args: List[String], df: Expr) extends OtherExpr {
+  def toSTeX = SMacroApplication("equals", List(SMacroApplication(name,args.map(SText(_)),true), df.toSTeX), false)
+}
 
 object Evaluator {
 
@@ -127,6 +160,7 @@ object Evaluator {
               case Equals => prev == aE
               case Less => prev < aE
               case LessEq => prev <= aE
+              case Divides => if (prev == 0) false else aE % prev == 0
             }
             prev = aE
             r
@@ -151,12 +185,24 @@ object Evaluator {
     case Var(n) => ctx(n)
     case Apply(op, fs) =>
       val fsE = fs.map(a => apply(a))
-      val (neut, fold): (Int, (Int,Int) => Int) = op match {
-        case Plus => (0,(x,y) => x+y)
-        case Times => (1,(x,y) => x*y)
-        case Minus => (0,(x,y) => x-y)
-        case Exp => (1,(x,y) => x^y)
+      if (op.arity.isEmpty) {
+        val (neut,fold): (Int,(Int,Int) => Int) = op match {
+          case Plus => (0,(x,y) => x + y)
+          case Times => (1,(x,y) => x * y)
+          case Min => (0, (x,y) => if (x>y) y else x)
+          case Max => (0, (x,y) => if (x<y) y else x)
+        }
+        fsE.fold(neut)(fold)
+      } else op match {
+        case Minus => fsE(0) - fsE(1)
+        case Exp => exp(fsE(0), fsE(1))
+        case Mod =>
+          val e = fsE(1)
+          val m = fsE(0) % e
+          if (m < 0) m + e else m
       }
-      fsE.fold(neut)(fold)
+  }
+  def exp(a: Int, b: Int): Int = {
+    if (b == 0) 1 else a*exp(a,b-1)
   }
 }
