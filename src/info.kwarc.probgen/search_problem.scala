@@ -2,6 +2,7 @@ package info.kwarc.probgen
 
 import SText._
 
+/** a path in a transition system with states from S and actions from A */
 case class Path[S,A](start: S, length: Int, _steps: List[(A,S)]) extends STeXAble {
   override def toString = start.toString + steps.map{case (a,s) => s" ~$a~> $s"}.mkString("")
   def toSTeX = {
@@ -18,17 +19,24 @@ object Path {
   def empty[S,A](i: S): Path[S,A] = Path(i, 0, Nil)
 }
 
-object SearchProblem {
-  type IntPath = Path[Int,Int]
-  type IntSearchProblem = SearchProblem[Int,Int]
-}
+/** a search problem,
+  * as defined in the lecture except for
+  * - using type parameters for the origin of the states and actions
+  * - choosing implementations for the sets: lists or predicates
+  */
 trait SearchProblem[S,A] {
+  /** the set of states (must be a list so that they can be enumerated) */
   val states: List[S]
+  /** the set of actions */
   val actions: List[A]
+  /** the (non-deterministic) transition function */
   def trans(s:S, a:A): List[S]
+  /** the initial states */
   val initial: List[S]
+  /** the set of goal states (must be a predicate so that searching for them makes sense) */
   def goal(s: S): Boolean
 
+  /** applies a list of actions in a state, returns the possible resulting states */
   def apply(from: List[S], path: List[A]): List[S] = {
     path match {
       case Nil => from
@@ -38,8 +46,10 @@ trait SearchProblem[S,A] {
     }
   }
 
+  /** checks if a list of actions is a solution */
   def check(path: List[A]) = apply(initial, path) exists goal
 
+  /** finds solutions */
   def findSolutions(from: List[Path[S,A]], depth: Int, found: List[List[Path[S,A]]]): List[Path[S,A]] = {
     if (depth == 0) {
       return found.flatten
@@ -51,33 +61,56 @@ trait SearchProblem[S,A] {
     findSolutions(next, depth-1, sols::found)
   }
 
+  /** finds solutions up to a maximal depth */
   def solve(depth: Int) = {
     val start: List[Path[S,A]] = initial map Path.empty
     findSolutions(start, depth, Nil).sortBy(_.length)
   }
 
   val searchDepth = 8
+  /** the solutions up to searchDepth */
   lazy val solutions = solve(searchDepth)
+  /** the state-action pairs that are not applicable */
   lazy val inapplicableActions: List[(S,A)] = states.flatMap {s => actions.flatMap {a =>
     if (trans(s,a).isEmpty) List((s,a)) else Nil
   }}
 }
+object SearchProblem {
+  /** the special case where states and actions are integers */
+  type IntPath = Path[Int,Int]
+  type IntSearchProblem = SearchProblem[Int,Int]
+}
 
+/** a concrete representation of a deterministic fully observalbe search problem that can be randomly generated
+  * @param numStates states are {0,...,numStates}
+  * @param actions set of actions
+  * @param successor an expression in variables s and a that gives the successor state
+  * @param init the initial state
+  * @param goalForm a formula in variable s that expresses if s is a goal
+  */
 case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: List[Int], successor: Term, init: Int, goalForm: Form)
   extends SearchProblem[Int,Int] with Problem[ExpressionBasedDeterminisiticSearchProblem] {
   val states = Range(0,numStates).toList
   val initial = List(init)
 
+  /** computes the successor state by evaluating successor using the values s and a */
   def trans(s: Int,a: Int) = {
     val t = Evaluator(successor)(Context("s" -> s)("a" -> a))
     List(t)
   }
 
+  /** checks if a state is a goal state by evaluating goalFrom using the value s */
   def goal(s: Int) = {
     Evaluator(goalForm)(Context("s" -> s))
   }
 
+  /** renders the intro text of the problem */
   def intro() = {
+    // use x" ..." to generate tex syntax (Scala string interpolation)
+    // use $variable or ${expression} to insert other objects
+    // - expressions are automatically converted into stex syntax
+    // - integers, strings etc. are inserted as is
+    // use § instead of $ for tex math mode
     SText(
       x"Consider the following search problem:\n",
       SItemize(
@@ -90,6 +123,9 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
     )
   }
 
+  // ***** subproblems ******
+
+  /** a subproblem with a question and solution */
   object whyPO extends Subproblem("apply",1,2) {
     def question() = {
       x"This search problem is fully observable. How can we tell?"
@@ -108,6 +144,7 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
     }
   }
 
+  /** a constraint to indicate that exactly one out of the above subproblems should be chosen */
   val _ = GroupConstraint(1,1,whyDet,whyPO)
 
   object actionNotApplicable extends Subproblem("apply",1,2) {
@@ -174,27 +211,34 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
     }
   }
 
-  GroupConstraint(1,1,giveSolution,giveAllSolutions)
+  val _ = GroupConstraint(1,1,giveSolution,giveAllSolutions)
 }
 
+/** randomly generates a search problem according to some criteria */
 object SearchProblemGenerator {
   def make(): ExpressionBasedDeterminisiticSearchProblem = {
+    // lower/upper bound for number of states
     val numStates = Generator.chooseInt(7,11)
     val stateList = Range(0,numStates).toList
     val states = FinSet(stateList.map(Lit):_*)
     println("choosing states: " + states)
+    // lower/upper bound for number of actions; actions are numbers similar in size to the states
     val actionList = Generator.chooseSome(stateList, 2, 4).sorted
     val actions = FinSet(actionList.map(Lit):_*)
     println("choosing actions: " + actions)
+    // the initial state is some state
     val initial = if (Generator.chooseBoolean(0.5)) 0 else numStates-1
     println("choosing initial state: " + initial)
+    // repeat picking goal conditions until a good one is found
     var goal: Form = null
     var good = false
     println("choosing goal condition")
     do {
+      // goal conditions are of the form p(s,i) where p is some predicate and i is a number
       val goalPred = Generator.choose(List(Less,LessEq,Divides,Equals))
       val goalArg = Generator.choose(Range(0,numStates).toList)
       goal = goalPred(Var("s"), Lit(goalArg))
+      // compute the set of goal states and check if we like it
       val goalStates = Range(0,numStates).filter(s => Evaluator(goal)(Context("s" -> s)))
       val numGoalStates = goalStates.length
       println("  " + goal + " --- " + "satisfied by " + goalStates.mkString(","))
@@ -207,17 +251,20 @@ object SearchProblemGenerator {
       } else {
         good = true
         if (numGoalStates == 1) {
-          // normalize trivial goal predicate
+          // if there is only one goal state, use the equality as the predicate
           goal = Equals(Var("s"), Lit(goalStates.head))
         }
       }
     } while (!good)
+    // loop until a good transition function is found
     println("choosing transition operation")
     var searchProb: ExpressionBasedDeterminisiticSearchProblem = null
     good = false
-    var tries = 0
+    var tries = 0 // count attempts and abort if we can't find anything good
     do {
       tries += 1
+      // the transition function is of the form (s op a [op' i]) modulo number of states
+      // where op, op' are random operators and i is a number
       val op1 = Generator.choose(List(Plus,Minus,Times,Exp))
       val term1 = op1(Var("s"), Var("a"))
       val lit = Generator.choose(stateList)
@@ -230,6 +277,7 @@ object SearchProblemGenerator {
       println("  " + term2)
       val trans = Mod(term2,Lit(numStates))
       searchProb = ExpressionBasedDeterminisiticSearchProblem(numStates,actionList,trans,initial,goal)
+      // solve the resulting search problem and check if we like the solutions
       val solutions = searchProb.solutions
       if (solutions.isEmpty) {
         println("  no solutions --- dismiss")
@@ -247,6 +295,7 @@ object SearchProblemGenerator {
       }
     } while (!good && tries < 100)
     if (!good) {
+      // fail-safe: start from scratch if we're stuck
       println("no problem found, trying again")
       return make()
     }
