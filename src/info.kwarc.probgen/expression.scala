@@ -1,15 +1,7 @@
 package info.kwarc.probgen
 
-import info.kwarc.probgen
-
-case class Context(vals: List[(String,Int)]) {
-  def apply(n: String) = vals.find(_._1 == n).get._2
-  def apply(v: (String,Int)): Context = Context(v::vals)
-}
-object Context {
-  def apply(v: (String,Int)): Context = Context(List(v))
-}
-
+/** a simple language of expressions, similar to first-order logic with integers as the base type
+  * */
 sealed abstract class Expr {
   def toSTeX: SText
   def toSTeXTop = SMath(toSTeX)
@@ -46,21 +38,31 @@ sealed trait OperApply {
   }
 }
 
+/** formulas */
 sealed abstract class Form extends Expr
+/** application of a connective to some formulas */
 case class Conn(op: COper, args: List[Form]) extends Form with OperApply
+/** application of a predicate symbol to some terms */
 case class Pred(op: FOper, args: List[Term]) extends Form with OperApply
 
+/** terms */
 abstract class Term extends Expr
+/** application of a function symbol to some terms */
 case class Apply(op: TOper, args: List[Term]) extends Term with OperApply
+/** reference to a named variable */
 case class Var(name: String) extends Term {
   def toSTeX = SPlainText(name)
   override def toString = name
 }
+/** an integer literal */
 case class Lit(value: Int) extends Term {
   override def toString = value.toString
   def toSTeX = SPlainText(toString)
 }
 
+/** other expressions like sets, tuples, sequences
+  * These can be rendered as stex, but we do not provide computation for them.
+  */
 abstract class OtherExpr extends Expr
 case class OtherApply(op: OtherOper, args: List[Expr]) extends Expr with OperApply
 
@@ -72,6 +74,7 @@ sealed abstract class Oper {
   def maxArity: Option[Int] = None
 }
 
+/** predicate symbols */
 sealed abstract class FOper(val stexname: String, val flexary: Boolean) extends Oper {
   def apply(args: Term*) = Pred(this, args.toList)
   def unapply(f: Form) = f match {
@@ -80,6 +83,7 @@ sealed abstract class FOper(val stexname: String, val flexary: Boolean) extends 
   }
 }
 
+/** function symbols */
 sealed abstract class TOper(val stexname: String, val flexary: Boolean, val arity: Option[Int] = None) extends Oper {
   def apply(args: Term*) = Apply(this, args.toList)
   def unapply(f: Term) = f match {
@@ -90,6 +94,7 @@ sealed abstract class TOper(val stexname: String, val flexary: Boolean, val arit
   override def maxArity = arity
 }
 
+/** connectives */
 sealed abstract class COper(val stexname: String, val flexary: Boolean) extends Oper {
   def apply(args: Form*) = Conn(this, args.toList)
   def unapply(f: Form) = f match {
@@ -98,6 +103,7 @@ sealed abstract class COper(val stexname: String, val flexary: Boolean) extends 
   }
 }
 
+/** other operators, see [[OtherExpr]] */
 sealed abstract class OtherOper(val stexname: String, val flexary: Boolean) extends Oper {
   def apply(args: Expr*): Expr = OtherApply(this, args.toList)
   def apply(is: List[Int]): Expr = apply(is.map(Lit):_*)
@@ -114,19 +120,24 @@ object TOper {
   val all = List(Plus,Times,Minus,Exp)
 }
 
+/* individual predicate symbols, function symbols, connectives, etc. */
+
 sealed abstract class ChainedFOper(s: String, f: Boolean) extends FOper(s,f)
 
+/* connectives */
 object And extends COper("lconj", true)
 object Or extends COper("ldisj", true)
 object Implies extends COper("implies", true)
 object Neg extends COper("lneg", true)
 
+/* predicate symbols */
 object Equals extends ChainedFOper("equals", false)
 object NotEquals extends FOper("nequals", false)
 object Less extends ChainedFOper("intless", false)
 object LessEq extends ChainedFOper("intle", false)
 object Divides extends ChainedFOper("divides", false)
 
+/* function symbols */
 object Plus extends TOper("intplus", true)
 object Minus extends TOper("intminus", true, Some(2))
 object Times extends TOper("inttimes", true)
@@ -139,6 +150,7 @@ object Max extends TOper("intmax", true) {
   override def minArity = Some(2)
 }
 
+/* others */
 object FinSet extends OtherOper("set", true)
 object Tuple extends OtherOper("tup", true)
 object FinSeq extends OtherOper("seq", true)
@@ -147,8 +159,21 @@ case class GivenBy(name: String, args: List[String], df: Expr) extends OtherExpr
   def toSTeX = SMacroApplication("equals", List(SMacroApplication(name,args.map(SText(_)),true), df.toSTeX), false)
 }
 
+/**
+  * an evaluator for formulas and terms
+  *
+  * each evaluation takes a [[Context]] argument that assigns concrete integers to each named variables
+  *
+  * For example, we can write
+  * val F = And(Equals(Var("x"),5), Less(Lit(1), Plus(Var("x"), Var("y")))
+  * for the formula F(x,y) = x==5 /\ 1 < x+y
+  * and then call
+  * Evaluator.apply(F)(Context("x" -> 3)("y" -> 5))
+  * to compute F(3,5).
+  */
 object Evaluator {
 
+  /** evaluates formulas to Booleans */
   def apply(f: Form)(implicit ctx: Context): Boolean = f match {
     case Pred(op: ChainedFOper, as) => as match {
         case Nil => true
@@ -180,6 +205,7 @@ object Evaluator {
     case Or(as) => as.exists(a => apply(a))
   }
 
+  /** evaluates terms to integers */
   def apply(t: Term)(implicit ctx: Context): Int = t match {
     case Lit(i) => i
     case Var(n) => ctx(n)
@@ -205,4 +231,13 @@ object Evaluator {
   def exp(a: Int, b: Int): Int = {
     if (b == 0) 1 else a*exp(a,b-1)
   }
+}
+
+
+case class Context(vals: List[(String,Int)]) {
+  def apply(n: String) = vals.find(_._1 == n).get._2
+  def apply(v: (String,Int)): Context = Context(v::vals)
+}
+object Context {
+  def apply(v: (String,Int)): Context = Context(List(v))
 }

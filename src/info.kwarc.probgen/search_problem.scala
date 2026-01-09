@@ -81,12 +81,12 @@ object SearchProblem {
   type IntSearchProblem = SearchProblem[Int,Int]
 }
 
-/** a concrete representation of a deterministic fully observalbe search problem that can be randomly generated
+/** a concrete representation of a deterministic fully observable search problem that can be randomly generated
   * @param numStates states are {0,...,numStates}
   * @param actions set of actions
-  * @param successor an expression in variables s and a that gives the successor state
+  * @param successor a term in variables "s" and "a" that gives the successor state
   * @param init the initial state
-  * @param goalForm a formula in variable s that expresses if s is a goal
+  * @param goalForm a formula in variable "s" that expresses if s is a goal
   */
 case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: List[Int], successor: Term, init: Int, goalForm: Form)
   extends SearchProblem[Int,Int] with Problem[ExpressionBasedDeterminisiticSearchProblem] {

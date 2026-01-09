@@ -4,6 +4,7 @@ import scala.util.Random
 
 case class Frame(allowLiterals: Boolean = true)
 
+/** state that is used by some functions in [[Generator]] */
 class State(val minSize: Int, val maxSize: Int, val vars: List[String]) {
   private var stack = List(Frame())
   def frame = stack.head
@@ -28,15 +29,51 @@ class State(val minSize: Int, val maxSize: Int, val vars: List[String]) {
   }
 }
 
+/**
+  * This objects collects utility methods for generating random objects.
+  * It was originally intended to allow generating random [[Formula]]s and [[Term]]s
+  * based on certain criteria such as depth of the syntax tree,
+  * but it is not clear how well this will work.
+  * Either way the basic functions are good for reuse.
+  */
 object Generator {
+  /* basic functions that do not work with expressions */
+  /** choose one value from a list */
+  def choose[A](options: List[A]): A = {
+    val n = Random.nextInt(options.length)
+    options(n)
+  }
+  /** choose some values from a list */
+  def chooseSome[A](options: List[A], atLeast: Int, atMost: Int) = {
+    val num = choose(Range(atLeast,atMost+1).toList)
+    var choices: List[A] = Nil
+    do {
+      val c = choose(options)
+      if (!choices.contains(c)) choices ::= c
+    } while (choices.length < num)
+    choices
+  }
+  /** choose a Boolean, true with some probability */
+  def chooseBoolean(prob: Double): Boolean = {
+    val r = Random.nextFloat()
+    r <= prob
+  }
+  /** choose an integer from a range */
+  def chooseInt(min: Int, max: Int) = {
+    val n = Random.nextInt(max+1-min)
+    min+n
+  }
+
+  /* methods that try to generate random terms and formulas */
+
   def genTerm(state: State): Term = {
     val leafProb: Double = if (state.size < state.minSize) 0.0
-      else if (state.size >= state.maxSize) 1.0
-      else (state.size-state.minSize)/(state.maxSize-state.minSize)
+    else if (state.size >= state.maxSize) 1.0
+    else (state.size-state.minSize)/(state.maxSize-state.minSize)
     if (chooseBoolean(leafProb)) {
       val makeLitOverVar = if (!state.frame.allowLiterals) 0.0
-         else if (state.unusedVars.nonEmpty) 0.1
-         else 0.3
+      else if (state.unusedVars.nonEmpty) 0.1
+      else 0.3
       if (chooseBoolean(makeLitOverVar)) {
         genInt(state)
       } else {
@@ -81,27 +118,5 @@ object Generator {
     state.size += 1
     val args = genTerms(state,2,2)
     Pred(op,args)
-  }
-
-  def choose[A](options: List[A]): A = {
-    val n = Random.nextInt(options.length)
-    options(n)
-  }
-  def chooseSome[A](options: List[A], atLeast: Int, atMost: Int) = {
-    val num = choose(Range(atLeast,atMost+1).toList)
-    var choices: List[A] = Nil
-    do {
-      val c = choose(options)
-      if (!choices.contains(c)) choices ::= c
-    } while (choices.length < num)
-    choices
-  }
-  def chooseBoolean(prob: Double): Boolean = {
-    val r = Random.nextFloat()
-    r <= prob
-  }
-  def chooseInt(min: Int, max: Int) = {
-    val n = Random.nextInt(max+1-min)
-    min+n
   }
 }

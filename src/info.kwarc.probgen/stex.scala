@@ -1,5 +1,15 @@
 package info.kwarc.probgen
 
+/** This file declares Scala binders for stex syntax.
+  *
+  * Any problem/solution statements should be formulated in terms of these classes.
+  * The generation of stex text is then taken care of generically.
+  *
+  * Importantly, the string interpolation syntax x" ... " can be used to construct stex code.
+  * Within the " ", scala object O can be given as ${O} most of these can be converted into stex automatically.
+  * Because Scala predefines $, we use § instead of $ as the latex math mode switch.
+  */
+
 /** mixin for objects that can be rendered as STeX */
 trait STeXAble {
   def toSTeX: STeXSyntax
