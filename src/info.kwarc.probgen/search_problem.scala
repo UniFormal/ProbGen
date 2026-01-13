@@ -5,6 +5,8 @@ import SText._
 /** a path in a transition system with states from S and actions from A */
 case class Path[S,A](start: S, length: Int, _steps: List[(A,S)]) extends STeXAble {
   override def toString = start.toString + steps.map{case (a,s) => s" ~$a~> $s"}.mkString("")
+  def rename[T,B](rs: S => T, ra: A => B) =
+    Path(rs(start), length, _steps.map({case (s,a) => (ra(s),rs(a))}))
   def toSTeX = {
     val startS = SText(start.toString)
     val stepsS = steps.map {case (a,s) => x"\stackrel{\to}{$a}$s"}
@@ -93,6 +95,8 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
   val states = Range(0,numStates).toList
   val initial = List(init)
 
+  var presentArithmetically = true
+
   /** computes the successor state by evaluating successor using the values s and a */
   def trans(s: Int,a: Int) = {
     val t = Evaluator(successor)(Context("s" -> s)("a" -> a))
@@ -104,6 +108,10 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
     Evaluator(goalForm)(Context("s" -> s))
   }
 
+  private def stateName(s: Int): Expr = if (presentArithmetically) Lit(s) else NameLit(s)
+  private def actionName(a: Int): Expr = if (presentArithmetically) Lit(a) else NameLit(26-actions.length+actions.indexOf(a))
+  def namedSolutions = solutions.map(_.rename(stateName,actionName))
+
   /** renders the intro text of the problem */
   def intro() = {
     // use x" ..." to generate tex syntax (Scala string interpolation)
@@ -111,16 +119,42 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
     // - expressions are automatically converted into stex syntax
     // - integers, strings etc. are inserted as is
     // use § instead of $ for tex math mode
-    SText(
+    val (tr,ins,go) = if (presentArithmetically) {
+      (x"${GivenBy("T",List("s","a"), FinSet(successor))} (where all operations are taken modulo $numStates)",
+       FinSet(initial),
+       goalForm
+      )
+    } else {(
+      x"as given by the table below",
+      x"the states marked by §\to§ below",
+      x"§s§ is marked by §!§ below"
+    )}
+    val part1 = SText(
       x"Consider the following search problem:\n",
       SItemize(
-        SItem(x"set §S§ of states: ${FinSet(states)}"),
-        SItem(x"set §A§ of actions: ${FinSet(actions)}"),
-        SItem(x"transition relation §T§: ${GivenBy("T",List("s","a"), FinSet(successor))} (where all operations are taken modulo $numStates)"),
-        SItem(x"initial states §I§: ${FinSet(initial)}"),
-        SItem(x"goal states §G§: ${InSet(Var("s"),Var("G"))} iff $goalForm")
+        SItem(x"set §S§ of states: ${FinSet(states.map(stateName):_*)}"),
+        SItem(x"set §A§ of actions: ${FinSet(actions.map(actionName):_*)}"),
+        SItem(x"transition relation §T§: $tr"),
+        SItem(x"initial states §I§: $ins"),
+        SItem(x"goal states §G§: ${InSet(Var("s"),Var("G"))} iff $go")
       )
     )
+    val part2 = if (presentArithmetically) null else {
+      val rowHeads = states.map {s =>
+        val sN = stateName(s)
+        if (initial.contains(s)) x"§\to§ $sN"
+        else if (goal(s)) x"§!§ $sN"
+        else x"$sN"
+      }
+      val cells = states.zipWithIndex.flatMap {case (s,i) =>
+        actions.zipWithIndex.map {case (a,j) =>
+          val t = trans(s,a).headOption.map(s => stateName(s).toSTeX).getOrElse(SText(" "))
+          (i,j,t)
+        }
+      }
+      SCenter(List(STabular(actions.map(a => actionName(a).toSTeX), rowHeads, cells)))
+    }
+    part1 + part2
   }
 
   // ***** subproblems ******
@@ -145,7 +179,7 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
   }
 
   /** a constraint to indicate that exactly one out of the above subproblems should be chosen */
-  val _ = GroupConstraint(1,1,whyDet,whyPO)
+  GroupConstraint(1,1,whyDet,whyPO)
 
   object actionNotApplicable extends Subproblem("apply",1,2) {
     override def applicable() = inapplicableActions.nonEmpty
@@ -153,7 +187,7 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
       x"Give an example of a state §s§ and an action §a§ such that §a§ is not applicable in §s§."
     }
     def solution() = {
-      x"The correct answers §(s,a)§ are $inapplicableActions"
+      x"The correct answers §(s,a)§ are ${inapplicableActions.map(sa => (stateName(sa._1),actionName(sa._2)))}"
     }
   }
 
@@ -179,15 +213,15 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
     }
 
     def question() = {
-      x"Give the state(s) that can be reached by applying the action sequence ${FinSeq(actionSeq)} in an initial state."
+      x"Give the state(s) that can be reached by applying the action sequence ${FinSeq(actionSeq.map(actionName):_*)} in an initial state."
     }
 
     def solution() = {
-      x"The possible states are ${FinSeq(result)}."
+      x"The possible states are ${FinSeq(result.map(stateName):_*)}."
     }
   }
 
-  val _ = GroupConstraint(1,2, allActionsApplicable, actionNotApplicable, applyAction)
+  GroupConstraint(1,2, allActionsApplicable, actionNotApplicable, applyAction)
 
   object giveSolution extends Subproblem("apply",2,5) {
     override def applicable() = solutions.head.length <= 6
@@ -195,7 +229,7 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
       x"Give a solution."
     }
     def solution() = {
-      x"The solutions include ${solutions.take(5)}."
+      x"The solutions include ${namedSolutions.take(5)}."
     }
   }
 
@@ -207,11 +241,11 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
       x"Give all $n solution$plural whose length is at most $searchDepth."
     }
     def solution() = {
-      x"The solution(s) is/are $solutions."
+      x"The solution(s) is/are $namedSolutions."
     }
   }
 
-  val _ = GroupConstraint(1,1,giveSolution,giveAllSolutions)
+  GroupConstraint(1,1,giveSolution,giveAllSolutions)
 }
 
 /** randomly generates a search problem according to some criteria */
@@ -299,6 +333,7 @@ object SearchProblemGenerator {
       println("no problem found, trying again")
       return make()
     }
+    searchProb.presentArithmetically = Generator.chooseBoolean(0.5)
     println("chosen problem: " + searchProb)
     searchProb
   }

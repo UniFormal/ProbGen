@@ -65,6 +65,14 @@ case class Lit(value: Int) extends Term {
   */
 abstract class OtherExpr extends Expr
 case class OtherApply(op: OtherOper, args: List[Expr]) extends Expr with OperApply
+case class NameLit(name: String) extends OtherExpr {
+  override def toString = name
+  def toSTeX = SPlainText(toString)
+}
+object NameLit {
+  // 0 -> a, 1 -> b, ...
+  def apply(i: Int): NameLit = NameLit((97+i).toChar.toString)
+}
 
 sealed abstract class Oper {
   override def toString = stexname

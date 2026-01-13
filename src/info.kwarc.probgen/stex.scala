@@ -62,8 +62,29 @@ case class SEnumerate(items: SItem*) extends SList("enumerate", items.toList)
 case class SItem(body: SText) extends STeXSyntax {
   override def toString = "\\item " + body
 }
+case class SCenter(body: List[STeXSyntax]) extends SEnvironment("center")
+case class STabular(columnHeads: List[SText], rowHeads: List[SText], cells: List[(Int,Int,SText)]) extends SEnvironment("tabular") {
+  def makeRow(cs: List[SText]): SText = SSnippet(cs.head :: cs.tail.flatMap(s => List(SText(" & "), s)) ::: List(SText("\\\\")))
+  override def args = {
+    val cs = Range(0,columnHeads.length).map(_ => "c").mkString("")
+    List("l|"++ cs)
+  }
+  def body = {
+    val headerRow = makeRow(SText("") :: columnHeads)
+    val bodyRows =
+      rowHeads.zipWithIndex.map {case (r,i) =>
+        val values = Range(0,columnHeads.length).toList
+          .map(j => cells.find(c => c._1==i && c._2 == j).map(_._3).getOrElse(SText(" ")))
+        makeRow(r :: values)
+      }
+    headerRow :: SText("\\hline") :: bodyRows
+  }
+}
 
-trait SText extends STeXSyntax
+trait SText extends STeXSyntax {
+  def ++(more: List[STeXSyntax]) = SSnippet(this::more)
+  def +(more: STeXSyntax) = if (more == null) this else SSnippet(List(this,more))
+}
 
 case class SMath(body: SText) extends SText {
   override def toString = "$" + body.toString.replace("$","") + "$"
