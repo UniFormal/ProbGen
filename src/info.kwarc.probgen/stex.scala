@@ -131,6 +131,7 @@ object SText {
         case s: String => apply(s)
         case a => Expr.fromAnyO(a) match {
           case Some(e) => e.toSTeXTop
+          case None => SPlainText(a.toString)
         }
       }
       val pairs = argsS.zip(partsS.tail)
@@ -141,6 +142,6 @@ object SText {
 
   def apply(args: STeXSyntax*): SText = SSnippet(args.toList)
   def apply(s: String): SText = SPlainText(s)
-  implicit def fromInt(i: Int) = SPlainText(i.toString)
+  implicit def fromInt(i: Int): SText = SPlainText(i.toString)
   def !(s: String) = SPlainText(s)
 }

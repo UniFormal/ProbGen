@@ -12,13 +12,14 @@ object Expr {
 
   def fromAnyO(a: Any): Option[Expr] = {
     try {Some(fromAny(a))}
-    catch {case e: Error => None}
+    catch {case e: Exception => None}
   }
   def fromAny(a: Any): Expr = a match {
     case e: Expr => e
     case i: Int => Lit(i)
-    case l: List[_] => FinSeq(l.map(fromAny):_*)
-    case t: Tuple2[_,_] => Tuple(t.productIterator.toList.map(fromAny):_*)
+    case s: String => NameLit(s)
+    case l: List[_] => FinSeq(l.map(fromAny)*)
+    case t: Tuple2[_,_] => Tuple(t.productIterator.toList.map(fromAny)*)
   }
 }
 
@@ -33,7 +34,7 @@ sealed trait OperApply {
     if (!op.isInstanceOf[OtherOper] && args.length >= 2) {
       args.mkString("(", " " + op + " ", ")")
     } else {
-      op + args.mkString("(", ",", ")")
+      op.toString + args.mkString("(", ",", ")")
     }
   }
 }
@@ -114,7 +115,7 @@ sealed abstract class COper(val stexname: String, val flexary: Boolean) extends 
 /** other operators, see [[OtherExpr]] */
 sealed abstract class OtherOper(val stexname: String, val flexary: Boolean) extends Oper {
   def apply(args: Expr*): Expr = OtherApply(this, args.toList)
-  def apply(is: List[Int]): Expr = apply(is.map(Lit):_*)
+  def apply(is: List[Int]): Expr = apply(is.map(Lit)*)
   def unapply(f: Expr) = f match {
     case OtherApply(op,as) if op == this => Some(as)
     case _ => None
@@ -220,13 +221,13 @@ object Evaluator {
     case Apply(op, fs) =>
       val fsE = fs.map(a => apply(a))
       if (op.arity.isEmpty) {
-        val (neut,fold): (Int,(Int,Int) => Int) = op match {
-          case Plus => (0,(x,y) => x + y)
-          case Times => (1,(x,y) => x * y)
-          case Min => (0, (x,y) => if (x>y) y else x)
-          case Max => (0, (x,y) => if (x<y) y else x)
+        op match {
+          case Plus => fsE.fold(0)((x: Int, y: Int) => x + y)
+          case Times => fsE.fold(1)((x: Int, y: Int) => x * y)
+          case Min => if (fsE.nonEmpty) fsE.reduce((x: Int, y: Int) => if (x>y) y else x) else 0
+          case Max => if (fsE.nonEmpty) fsE.reduce((x: Int, y: Int) => if (x<y) y else x) else 0
+          case _ => 0
         }
-        fsE.fold(neut)(fold)
       } else op match {
         case Minus => fsE(0) - fsE(1)
         case Exp => exp(fsE(0), fsE(1))

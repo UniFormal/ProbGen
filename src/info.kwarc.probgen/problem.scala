@@ -60,7 +60,7 @@ trait Problem[PD <: Problem[PD]] {
   }
 
   def toSTeX(subs: List[Subproblem]) = {
-    SProblem(intro, subs.map(_.toSTeX))
+    SProblem(intro(), subs.map(_.toSTeX()))
   }
   def toSTeXAll() = {
     val subs = subproblems

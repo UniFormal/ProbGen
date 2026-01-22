@@ -1,4 +1,4 @@
 name := "ProbGen"
-scalaVersion := "2.13.3"
+scalaVersion := "3.7.4"
 
 Compile/scalaSource := file("src")

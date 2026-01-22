@@ -21,10 +21,10 @@ class State(val minSize: Int, val maxSize: Int, val vars: List[String]) {
   def current(f: Frame => Frame) = {
     stack = f(stack.head) :: stack.tail
   }
-  def usedVar(n: String) {
+  def usedVar(n: String) = {
     unusedVars = unusedVars.filterNot(_ == n)
   }
-  def noMoreLiterals() {
+  def noMoreLiterals() = {
     current {f => f.copy(allowLiterals = false)}
   }
 }
@@ -35,7 +35,7 @@ class State(val minSize: Int, val maxSize: Int, val vars: List[String]) {
   * based on certain criteria such as depth of the syntax tree,
   * but it is not clear how well this will work.
   * Either way the basic functions are good for reuse.
-  */
+  */ 
 object Generator {
   /* basic functions that do not work with expressions */
   /** choose one value from a list */
@@ -47,10 +47,10 @@ object Generator {
   def chooseSome[A](options: List[A], atLeast: Int, atMost: Int) = {
     val num = choose(Range(atLeast,atMost+1).toList)
     var choices: List[A] = Nil
-    do {
+    while (choices.length < num) {
       val c = choose(options)
       if (!choices.contains(c)) choices ::= c
-    } while (choices.length < num)
+    }
     choices
   }
   /** choose a Boolean, true with some probability */

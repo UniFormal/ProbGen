@@ -99,13 +99,13 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
 
   /** computes the successor state by evaluating successor using the values s and a */
   def trans(s: Int,a: Int) = {
-    val t = Evaluator(successor)(Context("s" -> s)("a" -> a))
+    val t = Evaluator(successor)(using Context("s" -> s)("a" -> a))
     List(t)
   }
 
   /** checks if a state is a goal state by evaluating goalFrom using the value s */
   def goal(s: Int) = {
-    Evaluator(goalForm)(Context("s" -> s))
+    Evaluator(goalForm)(using Context("s" -> s))
   }
 
   private def stateName(s: Int): Expr = if (presentArithmetically) Lit(s) else NameLit(s)
@@ -132,8 +132,8 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
     val part1 = SText(
       x"Consider the following search problem:\n",
       SItemize(
-        SItem(x"set §S§ of states: ${FinSet(states.map(stateName):_*)}"),
-        SItem(x"set §A§ of actions: ${FinSet(actions.map(actionName):_*)}"),
+        SItem(x"set §S§ of states: ${FinSet(states.map(stateName)*)}"),
+        SItem(x"set §A§ of actions: ${FinSet(actions.map(actionName)*)}"),
         SItem(x"transition relation §T§: $tr"),
         SItem(x"initial states §I§: $ins"),
         SItem(x"goal states §G§: ${InSet(Var("s"),Var("G"))} iff $go")
@@ -203,21 +203,21 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
 
   object applyAction extends Subproblem("apply",3,5) {
     var actionSeq: List[Int] = null
-    var result: List[Int] = null
+    var result: List[Int] = Nil
 
     override def init() = {
-      do {
+      while (result.isEmpty) {
         actionSeq = Generator.chooseSome(actions,2,3)
         result = apply(initial,actions)
-      } while (result.isEmpty)
+      }
     }
 
     def question() = {
-      x"Give the state(s) that can be reached by applying the action sequence ${FinSeq(actionSeq.map(actionName):_*)} in an initial state."
+      x"Give the state(s) that can be reached by applying the action sequence ${FinSeq(actionSeq.map(actionName)*)} in an initial state."
     }
 
     def solution() = {
-      x"The possible states are ${FinSeq(result.map(stateName):_*)}."
+      x"The possible states are ${FinSeq(result.map(stateName)*)}."
     }
   }
 
@@ -254,11 +254,11 @@ object SearchProblemGenerator {
     // lower/upper bound for number of states
     val numStates = Generator.chooseInt(7,11)
     val stateList = Range(0,numStates).toList
-    val states = FinSet(stateList.map(Lit):_*)
+    val states = FinSet(stateList.map(Lit)*)
     println("choosing states: " + states)
     // lower/upper bound for number of actions; actions are numbers similar in size to the states
     val actionList = Generator.chooseSome(stateList, 2, 4).sorted
-    val actions = FinSet(actionList.map(Lit):_*)
+    val actions = FinSet(actionList.map(Lit)*)
     println("choosing actions: " + actions)
     // the initial state is some state
     val initial = if (Generator.chooseBoolean(0.5)) 0 else numStates-1
@@ -267,13 +267,13 @@ object SearchProblemGenerator {
     var goal: Form = null
     var good = false
     println("choosing goal condition")
-    do {
+    while (!good) {
       // goal conditions are of the form p(s,i) where p is some predicate and i is a number
       val goalPred = Generator.choose(List(Less,LessEq,Divides,Equals))
       val goalArg = Generator.choose(Range(0,numStates).toList)
       goal = goalPred(Var("s"), Lit(goalArg))
       // compute the set of goal states and check if we like it
-      val goalStates = Range(0,numStates).filter(s => Evaluator(goal)(Context("s" -> s)))
+      val goalStates = Range(0,numStates).filter(s => Evaluator(goal)(using Context("s" -> s)))
       val numGoalStates = goalStates.length
       println("  " + goal + " --- " + "satisfied by " + goalStates.mkString(","))
       if (numGoalStates == 0) {
@@ -289,13 +289,13 @@ object SearchProblemGenerator {
           goal = Equals(Var("s"), Lit(goalStates.head))
         }
       }
-    } while (!good)
+    }
     // loop until a good transition function is found
     println("choosing transition operation")
     var searchProb: ExpressionBasedDeterminisiticSearchProblem = null
     good = false
     var tries = 0 // count attempts and abort if we can't find anything good
-    do {
+    while (!good && tries < 100) {
       tries += 1
       // the transition function is of the form (s op a [op' i]) modulo number of states
       // where op, op' are random operators and i is a number
@@ -327,7 +327,7 @@ object SearchProblemGenerator {
           good = true
         }
       }
-    } while (!good && tries < 100)
+    }
     if (!good) {
       // fail-safe: start from scratch if we're stuck
       println("no problem found, trying again")
@@ -338,4 +338,3 @@ object SearchProblemGenerator {
     searchProb
   }
 }
-
