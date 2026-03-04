@@ -1,0 +1,374 @@
+% load this package instead of stex to build stex files without actually using stex
+
+% This only works if you manually add macro definitions for all stex-generated macros that your document does in fact use.
+% That does not scale in general, but it is a good trade-off if your document
+% - uses only few stex-generated macros (so that there is little manual work)
+% - has a large dependency cone (so that real stex is slow)
+% - is compiled a lot
+
+% You can use \newapplied etc. to make defining new macros easier.
+
+\RequirePackage{standalone}
+\newcommand{\mathhubroot}{../../../../../../..}
+
+\RequirePackage{xstring}
+
+% make all stex structure trivial
+\newenvironment{frontmatter}{}{}
+
+\newenvironment{sfragment}[1]{\section{#1}}{}
+\newcommand{\libinput}[1]{}
+\newcommand{\sn}[2][]{#2}
+\newcommand{\sns}[2][]{#2s}
+\newcommand{\Sn}[2][]{#2}
+\newcommand{\Sns}[2][]{#2s}
+\newcommand{\sr}[2]{#2}
+\newcommand{\usemodule}[2][]{}
+\newcommand{\usestructure}[2][]{}
+\newcommand{\setnotation}[2]{}
+% instead of \problemArchive, \inputref should use #1 or (if absent) the present archive
+% But for now it only every occurs in the AI problems archive.
+\newcommand{\problemArchive}{courses/FAU/AI/problems}
+\newcommand{\inputref}[2][]{\input{\mathhubroot/\problemArchive/source/#2}}
+% optional argument is usually archive=ARCHVEPATH. So if present, we strip "archive=" to get the path; if absent, we use \problemArchive
+\newcommand{\includeproblem}[2][]{%
+\def\@hashOne{#1}%
+\StrGobbleLeft{\@hashOne}{8}[\@hashOneSuffix]%
+\ifnonempty[\def\@arch{\problemArchive}]{#1}{\def\@arch{\@hashOneSuffix}}%
+\input{\mathhubroot/\@arch/source/#2}}
+
+\newcommand{\cmhtikzinput}[2][]{\inputref{#2}}
+
+% infrastructure for an sTeX-generated aux file
+\newcommand\STEXInternalSetSrefSymURL[1]{}
+\newcommand\problem@restore[3]{}
+
+% exam-specific structure
+\newenvironment{assignment}[1][]{\section{#1}}{}
+\newenvironment{sproblem}[1][]{\subsection{#1}}{}
+\newenvironment{subproblem}[1][]{\subsubsection{#1}}{}
+\newenvironment{hint}[1][]{\hrule\textbf{Hint: }}{}
+\newenvironment{solution}[1][]{\hrule\textbf{Solution: }}{}
+\newenvironment{gnote}{\hrule\textbf{Grading}\begin{itemize}\item default classes}{\end{itemize}}
+\newcommand{\fillinsol}[1]{\underline{#1}}
+\newenvironment{mcb}{Choose some:\begin{itemize}}{\end{itemize}}
+\newenvironment{scb}{Choose one:\begin{itemize}}{\end{itemize}}
+\newcommand{\mcc}[2][F]{\item[#1:] #2}
+\newcommand{\scc}[2][F]{\mcc[#1]{#2}}
+
+\newcommand{\objective}[2]{}
+\newcommand{\anscls}[2][]{\item #2}
+\newcommand{\testheading}[1][]{}
+\newif\ifsolutions
+\solutionstrue
+\newcommand{\testnewpage}{}
+\newcommand{\testemptypage}{}
+\newcommand{\testspace}[1]{}
+
+% standard packages that stex normally brings in
+\usepackage{amsmath,amssymb} % for \text, \square
+\usepackage{tikz}
+\usetikzlibrary{arrows}
+\usepackage{listings}
+\usepackage{paralist}
+\setcounter{tocdepth}{2}
+\usepackage[bookmarks,bookmarksopen]{hyperref}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% manual definitions for individual stex-generated macros
+
+\newcommand{\ALeA}{ALeA}
+
+% helpers for flexary, optional arguments, etc.
+% \fold{sep}{x1,...,xn} = x1 sep ... sep xn
+\newcommand{\fold}[2]{\def\@tmpop{\relax}\@for\@I:=#2\do{\@tmpop\@I\def\@tmpop{#1}}}
+% \ifnonempty[else]{test}{then}
+\newcommand{\ifnonempty}[3][]{\def\@empty{}\def\@test{#2}\ifx\@test\@empty#1\else#3\fi}
+% \ifnotbang[else]{test}{then}
+\newcommand{\ifnotbang}[3][]{\def\@bang{!}\def\@test{#2}\ifx\@test\@bang#1\else#3\fi}
+
+% \newnullary{a} defines \a as a
+\newcommand{\newnullary}[2]{\expandafter\gdef\csname#1\endcsname{#2}}
+% \newapplied{fun}{f} defines \fun! for f, \fun{args} for f(args)
+\newcommand{\newapplied}[2]{\expandafter\gdef\csname#1\endcsname##1{#2\ifnotbang{##1}{(##1)}}}
+% \newindexed{xv}{x} defines \xv! for x, \xv{i} for x_i
+\newcommand{\newindexed}[2]{\expandafter\gdef\csname#1\endcsname##1{#2\ifnotbang{##1}{_{##1}}}}
+% \newinfix{op}{*} defines \op! for *, \op{x1,...,xn} for x1*...*xn
+\newcommand{\newinfix}[2]{\expandafter\newcommand\csname#1\endcsname[2][]{\ifnotbang[#2]{##2}{\fold{#2}{##2}}}}
+% \newbinfix{op}{*} defines \op! for *, \op{x1}{x2} for x1*x2
+\newcommand{\newbinfix}[2]{\expandafter\newcommand\csname#1\endcsname[3][]{\ifnotbang[#2{##3}]{##2}{##2#2##3}}}
+
+% \newprefix{op}{*} defines \op! for *, \op{x} for *x
+\newcommand{\newprefix}[2]{\expandafter\newcommand\csname#1\endcsname[2][]{\ifnotbang[#2]{##2}{##2#2}}}
+% \newpostfix{op}{*} defines \op! for *, \op{x} for x*
+\newcommand{\newpostfix}[2]{\expandafter\newcommand\csname#1\endcsname[2][]{\ifnotbang[#2]{##2}{#2##2}}}
+
+
+% \newbinary{op}{pre}{in}{post} defines \op! for pre, \op{x1}{x2} for pre x1 in x2 post
+\newcommand{\newbinary}[4]{\expandafter\newcommand\csname#1\endcsname[3][]{\ifnotbang[#1{##1}{##2}{##3}]{##2}{#2##2#3##3#4}}}
+\newcommand{\newbinapp}[2]{\newbinary{#1}{#2(}{,}{)}}
+
+% sets
+\newcommand{\eset}{\emptyset}
+\newcommand{\set}[1]{\{#1\}}
+\newcommand{\setdots}[1]{\{#1,\ldots\}}
+\newcommand{\inset}[2]{#1\in #2}
+\newcommand{\sseteq}[2]{#1\subseteq #2}
+\newbinfix{setdiff}{\setminus}
+\newinfix{intersect}{\cap}
+\newinfix{union}{\cup}
+\newcommand{\setst}[2]{\{#1:#2\}}
+
+\newcommand{\tup}[1]{\langle #1\rangle}
+\newcommand{\pair}[2]{(#1,#2)}
+\newcommand{\mathstruct}[1]{\tup{#1}}
+\newinfix{cart}{\times}
+\newcommand{\seq}[1]{#1}
+
+\newcommand{\powerset}[1]{\mathcal{P}(#1)} % was \pwr
+\newcommand{\card}[1]{|#1|}
+
+\newcommand{\bsetst}[3]{\{#2\,|\,#3\}}
+
+\newbinfix{funspace}{\to}
+\newcommand{\fun}[3]{#1:\fold{\times}{#2}\to#3}
+\newcommand{\map}[2]{#1\mapsto#2}
+\newcommand{\apply}[2]{{#1(#2)}}
+\newinfix{compose}{\circ}
+
+\newinfix{defeq}{:=}
+\newinfix{eq}{=}
+\newbinfix{notequal}{\neq}
+\newnullary{ergo}{ergo}
+
+% numbers
+\newcommand{\NaturalNumbers}{\mathbb{N}}
+\newcommand{\IntegerNumbers}{\mathbb{Z}}
+\newcommand{\RealNumbers}{\mathbb{R}}
+
+\newinfix{natplus}{+}
+\newinfix{intplus}{+}
+\newinfix{realplus}{+}
+
+\newinfix{natminus}{-}
+\newinfix{intminus}{-}
+\newinfix{realminus}{-}
+
+\newprefix{intuminus}{-}
+\newprefix{realuminus}{-}
+
+\newinfix{nattimes}{\cdot}
+\newinfix{inttimes}{\cdot}
+\newinfix{realtimes}{\cdot}
+
+\newbinfix{natlethan}{\leq}
+\newbinfix{intlethan}{\leq}
+\newbinfix{reallethan}{\leq}
+
+\newbinfix{natlessthan}{<}
+\newbinfix{intlessthan}{<}
+\newbinfix{reallessthan}{}
+
+\newbinfix{natmorethan}{>}
+\newbinfix{intmorethan}{>}
+\newbinfix{realmorethan}{>}
+
+\newbinfix{natmethan}{\geq}
+\newbinfix{intmethan}{\geq}
+\newbinfix{realmethan}{\geq}
+
+\newbinfix{natpower}{^}
+\newbinfix{intpower}{^}
+\newbinfix{realpower}{^}
+
+\newbinfix{inatdiv}{div}
+\newbinfix{natmod}{mod}
+
+\newbinfix{intdiv}{div}
+\newbinfix{intmod}{mod}
+\newapplied{intabsval}{abs}
+
+\newcommand{\fraction}[2]{#1/#2}
+\newcommand{\realdivide}[2]{#1/#2}
+
+% complexity
+\newbinary{batmost}{O(}{:}{)}
+\newnullary{PTIME}{PTIME}
+\newnullary{NPTIME}{NPTIME}
+\newnullary{PSPACE}{PSPACE}
+\newnullary{EXPTIME}{EXPTIME}
+\newnullary{EXPSPACE}{EXPSPACE}
+
+% linear algebra
+\newinfix{matrixtimes}{\cdot}
+\newcommand{\ndim}[2]{#1^{#2}}
+\newcommand{\transposed}[1]{#1^{\mathrm{T}}}
+\newcommand{\vardef}[2]{\ensuremath{#1:=#2}}
+% meant for variable sequences, but sometimes used to introduce vectors
+\newcommand{\varseq}[3]{\newindexed{#1}{\mathbf{#1}}}
+
+% logic
+\newcommand{\preds}[1]{\Sigma^p_{#1}}
+\newcommand{\funs}[1]{\Sigma^f_{#1}}
+\newcommand{\foterms}[2]{wff_\iota(#1,#2)}
+\newcommand{\vass}[2]{[#1/#2]}
+\newcommand{\sbst}[2]{[#1/#2]}
+\newcommand{\esbst}{\cdot}
+\newcommand{\sbstList}[1]{#1}
+\newcommand{\sbstApply}[2]{#1(#2)}
+
+\newcommand{\sbstInstOr}[3]{#1\leq_{#3} #2}
+\newcommand{\sbstEqOn}[3]{#1=_{#3} #2}
+
+\newnullary{trueconst}{\top}
+\newnullary{falseconst}{\bot}
+\newcommand{\lneg}[1]{\neg #1}
+\newinfix{ldisj}{\vee}
+\newinfix{lconj}{\wedge}
+\newbinfix{lequiv}{\Leftrightarrow}
+\newbinfix{limpl}{\Rightarrow}
+\newcommand{\excdot}[2]{\exists #1.#2}
+\newcommand{\allcdot}[2]{\forall #1.#2}
+
+\newnullary{SATproblem}{SAT}
+
+\newcommand{\poslform}[1]{#1^1}
+\newcommand{\neglform}[1]{#1^0}
+\newcommand{\sequent}[2]{#1\vdash #2}
+\newcommand{\infrule}[2]{\frac{\fold{\qquad}{#1}}{#2}}
+\newcommand{\rclause}[1]{\set{#1}}
+
+\newcommand{\universe}{D}
+\newcommand{\FOUniverse}{o}
+\newcommand{\propUniverse}{\iota}
+\newnullary{Do}{\universe_o}
+
+\newnullary{semtrue}{1}
+\newnullary{semfalse}{0}
+\newinfix{entails}{\vdash}
+\newcommand{\derivesvia}[3]{#1\vdash^{#2}#3}
+\newcommand{\evalang}[2]{\langle U,I\rangle}
+\newcommand{\ValFun}[3]{[\![#3]\!]^{#1}_{#2}}
+\newcommand{\CValFun}[2]{\ValFun{#1}{}{#2}}
+\newapplied{interpretation}{I}
+
+\newnullary{PropLog}{PropLog}
+\newnullary{PREDLOG}{PredLog}
+\newnullary{FOSNDc}{SND}
+\newnullary{sFOTab}{sFOTableau}
+\newnullary{FOTab}{FOTableau}
+\newnullary{FOCNFCalc}{FOCNF}
+
+%  ND
+\newnullary{SNDaxiom}{axiom}
+
+\newnullary{NDandEL}{\wedge E_l}
+\newnullary{NDandER}{\wedge E_r}
+\newnullary{NDandI}{\wedge I}
+\newnullary{NDimpliesE}{\Rightarrow E}
+\newnullary{NDimpliesI}{\Rightarrow I}
+\newnullary{NDorE}{\vee E_}
+\newnullary{NDorIL}{\vee I_l}
+\newnullary{NDorIR}{\vee I_r}
+\newnullary{NDnegE}{\neg E}
+\newnullary{NDnegI}{\neg I}
+
+\newnullary{SNDandEL}{\wedge E_l}
+\newnullary{SNDandER}{\wedge E_r}
+\newnullary{SNDandI}{\wedge I}
+\newnullary{SNDimpliesE}{\Rightarrow E}
+\newnullary{SNDimpliesI}{\Rightarrow I}
+\newnullary{SNDorE}{\vee E_}
+\newnullary{SNDorIL}{\vee I_l}
+\newnullary{SNDorIR}{\vee I_r}
+\newnullary{SNDnegE}{\neg E}
+\newnullary{SNDnegI}{\neg I}
+\newnullary{SNDforallI}{\forall I}
+\newnullary{SNDforallE}{\forall E}
+\newnullary{SNDexistsI}{\exists I}
+\newnullary{SNDexistsE}{\exists E}
+
+% tableaux
+\newnullary{PropTabCalc}{PropTabCalc}
+\newnullary{tabclose}{close}
+\newnullary{sFOTabforall}{R\forall}
+\newnullary{sFOTabexists}{R\exists}
+
+\newenvironment{displaytableau*}{\[\begin{array}{c}}{\end{array}\]}
+\newcommand{\nextbranch}{&}
+\newenvironment{branches}[1]{\begin{array}{#1}}{\end{array}}
+\newnullary{taband}{\wedge T}
+
+
+%  ALC
+\newnullary{ALC}{ALC}
+\newnullary{PropDL}{PropDL}
+\newbinfix{krSubsume}{\sqsubseteq}
+\newnullary{botConcept}{\bot}
+\newnullary{topConcept}{\top}
+\newinfix{krUnion}{\sqcup}
+\newinfix{krInters}{\sqcap}
+\newcommand{\krComplement}[1]{\overline{#1}}
+\newbinary{ALCforall}{\forall}{.}{}
+\newbinary{ALCexists}{\exists}{.}{}
+\newbinfix{ABoxIn}{:}
+\newcommand{\ABoxRole}[3]{#2#1#3}
+
+\newapplied{krInter}{I}
+\newapplied{ALCInter}{I}
+\newcommand{\ALT}[2]{ALT^{#2}(#1)}
+
+\newapplied{tfidf}{\mathrm{tfidf}}
+
+% probabilities
+\newcommand{\uProb}[1]{P(#1)}
+\newcommand{\CondProb}[2]{P(#1|#2)}
+\newcommand{\ProbDist}[1]{P(#1)}
+\newcommand{\CondDist}[2]{P(#1|#2)}
+\newcommand{\percentage}[1]{#1\%}
+\newcommand{\forwardmessage}[1]{f_{#1}}
+\newcommand{\backwardmessage}[2]{b_{#1:#2}}
+\newcommand{\trvset}[2]{#1_{#2}}
+\newcommand{\rtrvset}[2]{#1_{#2}}
+\newindexed{HMMtm}{T}
+
+\newcommand{\bmaxin}[3]{\mathrm{max}_{#1\in#2}#3}
+\newcommand{\bmaxval}[4][]{\mathrm{maxval}_{#3}#4}
+\newcommand{\bargmaxincoll}[3]{\mathrm{argmax}_{#1\in#2}#3}
+\newcommand{\SumInColl}[4]{\Sigma_{#2\in#3}#4}
+\newcommand{\ProdInColl}[4]{\Pi_{#2\in#3}#4}
+
+\newcommand{\infinitesum}[3]{\Sigma_{#1=#2}#3}
+\newapplied{stateutility}{U}
+\newapplied{utilityof}{U}
+\newcommand{\MDP}{MDP}
+
+\newapplied{eutilfun}{EU}
+
+% search
+\newnullary{searchprob}{Search Problem}
+\newnullary{astarSearch}{\ensuremath{A^*}}
+\newapplied{realcost}{Cost}
+\newnullary{states}{S}
+\newnullary{actions}{A}
+\newbinapp{tm}{T}
+\newnullary{initials}{I}
+\newnullary{goals}{G}
+
+\newnullary{MinPlayer}{MinPlayer}
+\newnullary{MaxPlayer}{MaxPlayer}
+
+
+% constraint satisfaction
+\newcommand{\ignoreOptional}[1][]{}
+\newcommand{\csnet}[2]{\langle V,D,C\rangle\ignoreOptional}
+\newnullary{var}{V}
+\newcommand{\dom}[1]{D_{#1}}
+\newapplied{constr}{C}
+
+\newapplied{domain}{dom}
+
+% planning
+\newnullary{PlanEx}{PlanEx}
+\newnullary{facts}{F}
+\newnullary{goal}{G}
