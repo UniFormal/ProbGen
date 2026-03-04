@@ -9,7 +9,7 @@ case class Path[S,A](start: S, length: Int, _steps: List[(A,S)]) extends STeXAbl
     Path(rs(start), length, _steps.map({case (s,a) => (ra(s),rs(a))}))
   def toSTeX = {
     val startS = SText(start.toString)
-    val stepsS = steps.map {case (a,s) => x"\stackrel{\to}{$a}$s"}
+    val stepsS = steps.map {case (a,s) => x"\stackrel{$a}{\to}$s"}
     SMath(SSnippet(startS::stepsS))
   }
   def add(a: A, s: S) = Path(start, length+1, (a,s)::_steps)
@@ -97,10 +97,12 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
 
   var presentArithmetically = true
 
-  /** computes the successor state by evaluating successor using the values s and a */
+  /** computes the successor state by evaluating successor using the values s and a
+    * Actions are only applicable if the transition results in a legal state.
+    */
   def trans(s: Int,a: Int) = {
     val t = Evaluator(successor)(using Context("s" -> s)("a" -> a))
-    List(t)
+    if (states contains t) List(t) else Nil
   }
 
   /** checks if a state is a goal state by evaluating goalFrom using the value s */
@@ -125,34 +127,35 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
        goalForm
       )
     } else {(
-      x"as given by the table below",
+      x"as given by the table below (where empty cells indicate inapplicable actions)",
       x"the states marked by §\to§ below",
       x"§s§ is marked by §!§ below"
     )}
     val part1 = SText(
       x"Consider the following search problem:\n",
       SItemize(
-        SItem(x"set §S§ of states: ${FinSet(states.map(stateName)*)}"),
-        SItem(x"set §A§ of actions: ${FinSet(actions.map(actionName)*)}"),
-        SItem(x"transition relation §T§: $tr"),
-        SItem(x"initial states §I§: $ins"),
-        SItem(x"goal states §G§: ${InSet(Var("s"),Var("G"))} iff $go")
+        x"set §S§ of states: ${FinSet(states.map(stateName)*)}",
+        x"set §A§ of actions: ${FinSet(actions.map(actionName)*)}",
+        x"transition relation §T§: $tr",
+        x"initial states §I§: $ins",
+        x"goal states §G§: ${InSet(Var("s"),Var("G"))} iff $go"
       )
     )
     val part2 = if (presentArithmetically) null else {
       val rowHeads = states.map {s =>
         val sN = stateName(s)
         if (initial.contains(s)) x"§\to§ $sN"
-        else if (goal(s)) x"§!§ $sN"
+        else if (goal(s)) x"$sN §!§ "
         else x"$sN"
       }
       val cells = states.zipWithIndex.flatMap {case (s,i) =>
         actions.zipWithIndex.map {case (a,j) =>
-          val t = trans(s,a).headOption.map(s => stateName(s).toSTeX).getOrElse(SText(" "))
+          val t = trans(s,a).headOption.map(s => stateName(s).toSTeXTop).getOrElse(SText(" "))
           (i,j,t)
         }
       }
-      SCenter(List(STabular(actions.map(a => actionName(a).toSTeX), rowHeads, cells)))
+      val colHeads = actions.map(a => actionName(a).toSTeXTop)
+      SCenter(List(STabular(colHeads, rowHeads, cells)))
     }
     part1 + part2
   }
@@ -182,7 +185,7 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
   GroupConstraint(1,1,whyDet,whyPO)
 
   object actionNotApplicable extends Subproblem("apply",1,2) {
-    override def applicable() = inapplicableActions.nonEmpty
+    override def applicable() = presentArithmetically && inapplicableActions.nonEmpty
     def question() = {
       x"Give an example of a state §s§ and an action §a§ such that §a§ is not applicable in §s§."
     }
@@ -207,8 +210,8 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
 
     override def init() = {
       while (result.isEmpty) {
-        actionSeq = Generator.chooseSome(actions,2,3)
-        result = apply(initial,actions)
+        actionSeq = Generator.chooseSome(actions,2,3,true)
+        result = apply(initial,actionSeq)
       }
     }
 
@@ -229,7 +232,7 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
       x"Give a solution."
     }
     def solution() = {
-      x"The solutions include ${namedSolutions.take(5)}."
+      x"The solutions include ${SItemize(namedSolutions.take(5).map(SText.make)*)}."
     }
   }
 
@@ -241,7 +244,7 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
       x"Give all $n solution$plural whose length is at most $searchDepth."
     }
     def solution() = {
-      x"The solution(s) is/are $namedSolutions."
+      x"The solution(s) is/are ${SItemize(namedSolutions.map(SText.make)*)}."
     }
   }
 
@@ -250,23 +253,36 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
 
 /** randomly generates a search problem according to some criteria */
 object SearchProblemGenerator {
+  def log(s: String) = println("% " + s)
+
+  // modify these to guide selection
+  val minStates = 5
+  val maxStates = 8
+  val minActions = 3
+  val maxActions = 4
+  val minSolutionLength = 4
+  val maxSolutions = Some(4)
+  val minActionsInSolution = 2
+  def getTransitionModulo = Generator.chooseBoolean(0.0)
+  def getPresentArithmetically = Generator.chooseBoolean(0.5)
+
   def make(): ExpressionBasedDeterminisiticSearchProblem = {
     // lower/upper bound for number of states
-    val numStates = Generator.chooseInt(7,11)
+    val numStates = Generator.chooseInt(minStates,maxStates+1)
     val stateList = Range(0,numStates).toList
     val states = FinSet(stateList.map(Lit)*)
-    println("choosing states: " + states)
+    log("choosing states: " + states)
     // lower/upper bound for number of actions; actions are numbers similar in size to the states
-    val actionList = Generator.chooseSome(stateList, 2, 4).sorted
+    val actionList = Generator.chooseSome(stateList, minActions, maxActions, false).sorted
     val actions = FinSet(actionList.map(Lit)*)
-    println("choosing actions: " + actions)
+    log("choosing actions: " + actions)
     // the initial state is some state
     val initial = if (Generator.chooseBoolean(0.5)) 0 else numStates-1
-    println("choosing initial state: " + initial)
+    log("choosing initial state: " + initial)
     // repeat picking goal conditions until a good one is found
     var goal: Form = null
     var good = false
-    println("choosing goal condition")
+    log("choosing goal condition")
     while (!good) {
       // goal conditions are of the form p(s,i) where p is some predicate and i is a number
       val goalPred = Generator.choose(List(Less,LessEq,Divides,Equals))
@@ -275,13 +291,13 @@ object SearchProblemGenerator {
       // compute the set of goal states and check if we like it
       val goalStates = Range(0,numStates).filter(s => Evaluator(goal)(using Context("s" -> s)))
       val numGoalStates = goalStates.length
-      println("  " + goal + " --- " + "satisfied by " + goalStates.mkString(","))
+      log("  " + goal + " --- " + "satisfied by " + goalStates.mkString(","))
       if (numGoalStates == 0) {
-        println("    no goal states --- dismiss")
+        log("    no goal states --- dismiss")
       } else if (numGoalStates.toDouble/numStates > 0.2) {
-        println("    too many goal states --- dismiss")
+        log("    too many goal states --- dismiss")
       } else if (goalStates.contains(initial)) {
-        println("    initial is goal --- dismiss")
+        log("    initial is goal --- dismiss")
       } else {
         good = true
         if (numGoalStates == 1) {
@@ -291,7 +307,8 @@ object SearchProblemGenerator {
       }
     }
     // loop until a good transition function is found
-    println("choosing transition operation")
+    log("choosing transition operation")
+    val transitionModulo = getTransitionModulo
     var searchProb: ExpressionBasedDeterminisiticSearchProblem = null
     good = false
     var tries = 0 // count attempts and abort if we can't find anything good
@@ -308,33 +325,36 @@ object SearchProblemGenerator {
         val op2 = Generator.choose(List(Plus,Minus))
         op2(term1, Lit(lit))
       }
-      println("  " + term2)
-      val trans = Mod(term2,Lit(numStates))
+      log("  " + term2)
+      val trans = if (transitionModulo) Mod(term2,Lit(numStates)) else term2
       searchProb = ExpressionBasedDeterminisiticSearchProblem(numStates,actionList,trans,initial,goal)
       // solve the resulting search problem and check if we like the solutions
       val solutions = searchProb.solutions
       if (solutions.isEmpty) {
-        println("  no solutions --- dismiss")
+        log("  no solutions --- dismiss")
       } else {
         val sol = solutions.head
-        println("  shortest solutions: " + sol)
-        if (sol.length < 4) {
-          println("    length under 4 --- dismiss")
-        } else if (sol.actions.distinct.length < 2) {
-          println("    uses only 1 action --- dismiss")
+        log("  shortest solutions: " + sol)
+        if (sol.length < minSolutionLength) {
+          log(s"    length under $minSolutionLength --- dismiss")
+        } else if (sol.actions.distinct.length < minActionsInSolution) {
+          log(s"    uses fewer than $minActionsInSolution actions --- dismiss")
+        } else if (maxSolutions.forall(m => solutions.length > m)) {
+          log(s"    more than $maxSolutions solutions --- dismiss")
         } else {
-          println("  solutions: " + solutions.take(5).mkString("\n  "))
+          log("  solutions: ")
+          solutions.take(5).foreach(s => log("  " + s))
           good = true
         }
       }
     }
     if (!good) {
       // fail-safe: start from scratch if we're stuck
-      println("no problem found, trying again")
+      log("no problem found, trying again")
       return make()
     }
-    searchProb.presentArithmetically = Generator.chooseBoolean(0.5)
-    println("chosen problem: " + searchProb)
+    searchProb.presentArithmetically = transitionModulo && getPresentArithmetically
+    log("chosen problem: " + searchProb)
     searchProb
   }
 }

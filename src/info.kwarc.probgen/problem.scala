@@ -51,7 +51,7 @@ trait Problem[PD <: Problem[PD]] {
       val currentlyChosen = subs.filter(p => gc.choices.contains(p))
       if (currentlyChosen.length > gc.atMost) {
         val numRemove = currentlyChosen.length - gc.atMost
-        val remove = Generator.chooseSome(currentlyChosen, numRemove,numRemove)
+        val remove = Generator.chooseSome(currentlyChosen, numRemove,numRemove,false)
         subs = subs.diff(remove)
       }
     }

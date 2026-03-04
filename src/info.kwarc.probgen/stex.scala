@@ -27,27 +27,38 @@ case class SParams(pars: (String,String)*) extends STeXSyntax {
   }
 }
 
-abstract class SEnvironment(name: String) extends STeXSyntax {
+abstract class SEnvironment(name: String, level: Int = 0) extends STeXSyntax {
   def args: List[String] = Nil
   def params: SParams = SParams()
   def body: List[STeXSyntax]
   override def toString = {
     val argsS = args.map(a => s"{$a}").mkString("")
-    s"\\begin{$name}$argsS${params}\n${body.mkString("\n")}\n\\end{$name}"
+    val spacebefore = if (level == 1) "\n" else if (level >= 2) "\n%%%%%%%%%\n" else ""
+    s"$spacebefore\\begin{$name}$argsS${params}\n${body.mkString("\n")}\n\\end{$name}"
   }
 }
 
-case class SDocument(body: List[SFragment]) extends SEnvironment("document")
-
-case class SFragment(title: String, body: List[SProblem]) extends SEnvironment("sfragment") {
-  override def params = SParams("title" -> title)
+case class SDocument(body: List[SFragment]) extends SEnvironment("document", 4) {
+  def toStringFull = {
+    """\documentclass{article}
+      |\usepackage{stexlight}
+      |""".stripMargin + toString
+  }
 }
 
-case class SProblem(intro: STeXSyntax, subproblems: List[SSubproblem]) extends SEnvironment("sproblem") {
+object SDocument {
+  def apply(t: String, p: SProblem): SDocument = SDocument(List(SFragment(t, List(p))))
+}
+
+case class SFragment(title: String, body: List[SProblem]) extends SEnvironment("sfragment", 3) {
+  override def args = List(title)
+}
+
+case class SProblem(intro: STeXSyntax, subproblems: List[SSubproblem]) extends SEnvironment("sproblem", 2) {
   def body = intro::subproblems
 }
 
-case class SSubproblem(pts: Int, question: SText, solution: SSolution) extends SEnvironment("subproblem") {
+case class SSubproblem(pts: Int, question: SText, solution: SSolution) extends SEnvironment("subproblem", 1) {
   override def params = SParams("pts" -> pts.toString)
   def body = List(question, solution)
 }
@@ -56,9 +67,11 @@ case class SSolution(testspace: Float, body: List[SText]) extends SEnvironment("
   override def params = SParams("testspace" -> (testspace.toString + "cm"))
 }
 
-abstract class SList(n: String, val body: List[SItem]) extends SEnvironment(n)
-case class SItemize(items: SItem*) extends SList("itemize", items.toList)
-case class SEnumerate(items: SItem*) extends SList("enumerate", items.toList)
+abstract class SList(n: String, items: List[SText]) extends SEnvironment(n) {
+  def body = items.map(SItem(_))
+}
+case class SItemize(items: SText*) extends SList("itemize", items.toList)
+case class SEnumerate(items: SText*) extends SList("enumerate", items.toList)
 case class SItem(body: SText) extends STeXSyntax {
   override def toString = "\\item " + body
 }
@@ -140,6 +153,7 @@ object SText {
     }
   }
 
+  def make(a: Any) = x"$a"
   def apply(args: STeXSyntax*): SText = SSnippet(args.toList)
   def apply(s: String): SText = SPlainText(s)
   implicit def fromInt(i: Int): SText = SPlainText(i.toString)

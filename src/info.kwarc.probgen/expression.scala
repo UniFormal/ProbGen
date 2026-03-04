@@ -1,7 +1,7 @@
 package info.kwarc.probgen
 
 /** a simple language of expressions, similar to first-order logic with integers as the base type
-  * */
+  */
 sealed abstract class Expr {
   def toSTeX: SText
   def toSTeXTop = SMath(toSTeX)

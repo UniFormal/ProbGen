@@ -44,12 +44,12 @@ object Generator {
     options(n)
   }
   /** choose some values from a list */
-  def chooseSome[A](options: List[A], atLeast: Int, atMost: Int) = {
+  def chooseSome[A](options: List[A], atLeast: Int, atMost: Int, allowRep: Boolean) = {
     val num = choose(Range(atLeast,atMost+1).toList)
     var choices: List[A] = Nil
     while (choices.length < num) {
       val c = choose(options)
-      if (!choices.contains(c)) choices ::= c
+      if (allowRep || !choices.contains(c)) choices ::= c
     }
     choices
   }

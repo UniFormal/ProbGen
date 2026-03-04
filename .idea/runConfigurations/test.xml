@@ -2,8 +2,13 @@
   <configuration default="false" name="test" type="Application" factoryName="Application">
     <option name="ALTERNATIVE_JRE_PATH" value="12" />
     <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="true" />
+    <output_file path="output.tex" is_save="true" />
     <option name="MAIN_CLASS_NAME" value="info.kwarc.probgen.Test" />
     <module name="ProbGen.main" />
+    <option name="PROGRAM_PARAMETERS" value="--full" />
+    <selectedOptions>
+      <option name="environmentVariables" visible="false" />
+    </selectedOptions>
     <method v="2">
       <option name="Make" enabled="true" />
     </method>
