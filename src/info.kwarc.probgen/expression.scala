@@ -46,6 +46,12 @@ case class Conn(op: COper, args: List[Form]) extends Form with OperApply
 /** application of a predicate symbol to some terms */
 case class Pred(op: FOper, args: List[Term]) extends Form with OperApply
 
+/** Boolean variables */
+case class BVar(name: String) extends Form {
+  def toSTeX = SPlainText(name)
+  override def toString = name
+}
+
 /** terms */
 abstract class Term extends Expr
 /** application of a function symbol to some terms */
@@ -169,6 +175,11 @@ case class GivenBy(name: String, args: List[String], df: Expr) extends OtherExpr
 }
 
 /**
+  * thrown when evaluation fails
+  */
+case class EvalError(m: String) extends Exception(m)
+
+/**
   * an evaluator for formulas and terms
   *
   * each evaluation takes a [[Context]] argument that assigns concrete integers to each named variables
@@ -184,6 +195,10 @@ object Evaluator {
 
   /** evaluates formulas to Booleans */
   def apply(f: Form)(implicit ctx: Context): Boolean = f match {
+    case BVar(n) => ctx(n) match {
+      case v: Boolean => v
+      case v => throw EvalError("variable not integer: " + n + "=" + v)
+    }
     case Pred(op: ChainedFOper, as) => as match {
         case Nil => true
         case hd::tl =>
@@ -217,7 +232,10 @@ object Evaluator {
   /** evaluates terms to integers */
   def apply(t: Term)(implicit ctx: Context): Int = t match {
     case Lit(i) => i
-    case Var(n) => ctx(n)
+    case Var(n) => ctx(n) match {
+      case v: Int => v
+      case v => throw EvalError("variable not integer: " + n + "=" + v)
+    }
     case Apply(op, fs) =>
       val fsE = fs.map(a => apply(a))
       if (op.arity.isEmpty) {
@@ -243,9 +261,9 @@ object Evaluator {
 }
 
 
-case class Context(vals: List[(String,Int)]) {
-  def apply(n: String) = vals.find(_._1 == n).get._2
-  def apply(v: (String,Int)): Context = Context(v::vals)
+case class Context(vals: List[(String,AnyVal)]) {
+  def apply(n: String) = vals.find(_._1 == n).getOrElse(throw EvalError("undefined variable: " + n))._2
+  def apply(v: (String,AnyVal)): Context = Context(v::vals)
 }
 object Context {
   def apply(v: (String,Int)): Context = Context(List(v))
