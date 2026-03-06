@@ -19,6 +19,7 @@ object Expr {
     case i: Int => Lit(i)
     case s: String => NameLit(s)
     case l: List[_] => FinSeq(l.map(fromAny)*)
+    case s: Set[_] => FinSet(s.toList.map(fromAny)*)
     case t: Tuple2[_,_] => Tuple(t.productIterator.toList.map(fromAny)*)
   }
 }
@@ -121,7 +122,7 @@ sealed abstract class COper(val stexname: String, val flexary: Boolean) extends 
 /** other operators, see [[OtherExpr]] */
 sealed abstract class OtherOper(val stexname: String, val flexary: Boolean) extends Oper {
   def apply(args: Expr*): Expr = OtherApply(this, args.toList)
-  def apply(is: List[Int]): Expr = apply(is.map(Lit)*)
+  def apply(is: List[Int]): Expr = apply(is.map(Lit(_))*)
   def unapply(f: Expr) = f match {
     case OtherApply(op,as) if op == this => Some(as)
     case _ => None

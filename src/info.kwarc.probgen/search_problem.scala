@@ -252,8 +252,7 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
 }
 
 /** randomly generates a search problem according to some criteria */
-object SearchProblemGenerator {
-  def log(s: String) = println("% " + s)
+object SearchProblemGenerator extends ProblemGenerator[ExpressionBasedDeterminisiticSearchProblem] {
 
   // modify these to guide selection
   val minStates = 5
@@ -270,11 +269,11 @@ object SearchProblemGenerator {
     // lower/upper bound for number of states
     val numStates = Generator.chooseInt(minStates,maxStates+1)
     val stateList = Range(0,numStates).toList
-    val states = FinSet(stateList.map(Lit)*)
+    val states = FinSet(stateList.map(Lit(_))*)
     log("choosing states: " + states)
     // lower/upper bound for number of actions; actions are numbers similar in size to the states
     val actionList = Generator.chooseSome(stateList, minActions, maxActions, false).sorted
-    val actions = FinSet(actionList.map(Lit)*)
+    val actions = FinSet(actionList.map(Lit(_))*)
     log("choosing actions: " + actions)
     // the initial state is some state
     val initial = if (Generator.chooseBoolean(0.5)) 0 else numStates-1

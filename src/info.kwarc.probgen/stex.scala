@@ -100,7 +100,7 @@ trait SText extends STeXSyntax {
 }
 
 case class SMath(body: SText) extends SText {
-  override def toString = "$" + body.toString.replace("$","") + "$"
+  override def toString = "$" + body.toString + "$"
 }
 
 /* comma-separated sequence of math objects */
@@ -114,6 +114,28 @@ case class SSnippet(body: List[STeXSyntax], sep: String = "") extends SText {
 
 case class SPlainText(body: String) extends SText {
   override def toString = body
+  def togglesMath = {
+    var i = 0
+    val len = body.length
+    var inmath = false
+    while (i < len) {
+      val c = body(i)
+      if (c == '$') {
+        if (i+1<len && body(i+1) == '$') i += 1
+        inmath = !inmath
+      } else if (c == '\\') {
+        i += 1
+        if (i<len) {
+          val d = body(i)
+          if (d == '(' || d == '[' || d == ')' || d == ']') {
+            inmath = !inmath
+          }
+        }
+      }
+      i += 1
+    }
+    inmath
+  }
 }
 
 case class SMacroApplication(name: String, args: List[SText], flexary: Boolean) extends SText {
@@ -133,23 +155,30 @@ class SMacro(name: String) {
 object SText {
   implicit class STextInterpolator(sc: StringContext) {
     def x(args: Any*): SText = {
-      val partsS = sc.parts.toList.map {s =>
+      var partsS = sc.parts.toList.map {s =>
         val sR = s.replace('§', '$').replace("\\n","\n")
         SPlainText(sR)
       }
-      val argsS = args.toList.map {
-        case sx: STeXAble => sx.toSTeX
-        case sx: List[_] if sx.forall(_.isInstanceOf[STeXAble]) =>
-          SSnippet(sx.map(_.asInstanceOf[STeXAble].toSTeX), ", ")
-        case s: String => apply(s)
-        case a => Expr.fromAnyO(a) match {
-          case Some(e) => e.toSTeXTop
-          case None => SPlainText(a.toString)
+      var snippets: List[STeXSyntax] = List(partsS.head)
+      var inMath = partsS.head.togglesMath
+      partsS = partsS.tail
+      val argsS = args.toList.foreach {arg =>
+        val argS = arg match {
+          case sx: STeXAble => sx.toSTeX
+          case sx: List[_] if sx.forall(_.isInstanceOf[STeXAble]) =>
+            SSnippet(sx.map(_.asInstanceOf[STeXAble].toSTeX),", ")
+          case s: String => apply(s)
+          case a => Expr.fromAnyO(a) match {
+            case Some(e) => if (inMath) e.toSTeX else e.toSTeXTop
+            case None => SPlainText(a.toString)
+          }
         }
+        snippets ::= argS
+        snippets ::= partsS.head
+        inMath = inMath ^ partsS.head.togglesMath
+        partsS = partsS.tail
       }
-      val pairs = argsS.zip(partsS.tail)
-      val snippets = pairs.flatMap {case (s,p) => List(s,p)}
-      SSnippet(partsS.head :: snippets)
+      SSnippet(snippets.reverse)
     }
   }
 

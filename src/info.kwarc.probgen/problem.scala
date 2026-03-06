@@ -1,5 +1,10 @@
 package info.kwarc.probgen
 
+trait ProblemGenerator[PD <: Problem[PD]] {
+  def log(s: String) = println("% " + s)
+  def make(): PD
+}
+
 /**
   * parent class of exam-style problems
   *
