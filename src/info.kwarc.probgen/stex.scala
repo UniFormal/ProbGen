@@ -110,6 +110,7 @@ case class SMaths(body: List[SText]) extends SText {
 
 case class SSnippet(body: List[STeXSyntax], sep: String = "") extends SText {
   override def toString = body.mkString(sep)
+  def +(rest: SSnippet) = copy(body = this.body:::rest.body)
 }
 
 case class SPlainText(body: String) extends SText {

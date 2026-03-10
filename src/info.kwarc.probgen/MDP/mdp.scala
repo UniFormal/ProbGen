@@ -14,16 +14,22 @@ trait MDP {
 
   def states: List[S]
   def actions: List[A]
+  // presentation of the actions
+  def actionName(a: A): String
   def trans(s: S, a: A): BeliefState
-  def reward(s: S): Double
   def gamma: Double
-  def isTerminal(s: S): Boolean
   val initial: S
-  val goal: S
   var utilities: Utilities = null
 
-  def description(): STeXSyntax
+  // these definitions could be factored out, but it's nicer to have all parameters in one place
+  val goal: S
+  // these rewards ensure nice numbers with many values for gamma
+  def goalReward = 10.0
+  def nongoalReward = -2.0
+  def isTerminal(s: S) = s == goal
+  def reward(s: S) = if (s == goal) goalReward else nongoalReward
 
+  def description(): STeXSyntax
   // --- Value Iteration Tools ---
   
   /**
@@ -120,6 +126,7 @@ trait MDP {
 case class CircularMDP(numStates: Int, initial: Int, successProb: Double) extends MDP {
   type S = Int
   type A = Int
+  def actionName(a: A) = a.toString
 
   val states = Range(0, numStates).toList
   val actions = List(1, -1, 2)
@@ -135,8 +142,6 @@ case class CircularMDP(numStates: Int, initial: Int, successProb: Double) extend
     ),
     x"All actions succeed with probability $successProb and fail otherwise."
   ), "\n")
-  def isTerminal(s: Int) = s == goal
-  def reward(s: Int) = if (s == goal) 10.0 else -0.1
 
   def trans(s: Int, a: Int): BeliefState = {
     if (isTerminal(s)) return Map(s -> 1.0)
@@ -150,31 +155,28 @@ case class CircularMDP(numStates: Int, initial: Int, successProb: Double) extend
 
 case class GridMDP(width: Int, height: Int, successProb: Double) extends MDP {
   type S = (Int,Int)
-  type A = (Int,Int)
+  type A = (String, (Int,Int))
+  def actionName(a: A) = "\\mathtt{"+a._1+"}"
 
   val states = (for (x <- 0.until(width); y <- 0.until(height)) yield (x, y)).toList
-  val namedActions = List(("up",(0,1)),("down",(0,-1)),("right",(1,0)),("left",(-1,0)))
-  val actions = namedActions.map(_._2)
+  val actions = List(("up",(0,1)),("down",(0,-1)),("right",(1,0)),("left",(-1,0)))
   val gamma = 0.5
   val initial = (0,0)
   val goal = (width-1, height-1)
 
   def description() = SSnippet(List(
     x"The agent moves in a §$width \times $height§ grid.",
-    x"Its possible actions are ${namedActions.map(a => x"§\mathtt{${a._1}}§").mkString(", ")}.",
+    x"Its possible actions are ${actions.map(a => x"§${actionName(a)}§").mkString(", ")}.",
     x"These succeed with a probability of $successProb and fail without movement otherwise.",
     x""
   ),"\n")
-
-  def isTerminal(s: S) = s == goal
-  // Reward: -2.0 for non-goals ensures nice numbers with gamma=0.5
-  def reward(s: S) = if (s == goal) 10.0 else -2.0
 
   def trans(s: S, a: A): BeliefState = {
     // bound to [0,...,l]
     def norm(x: Int, l: Int) = if (x<0) 0 else if (x >= l) l-1 else x
     if (isTerminal(s)) return Map(s -> 1.0)
-    val intended = (norm(s._1+a._1, width), norm(s._2+a._2, height))
+    val (_,(ax,ay)) = a
+    val intended = (norm(s._1+ax, width), norm(s._2+ay, height))
     if (intended == s) Map(s -> 1.0)
     else Map(intended -> successProb, s -> (1.0-successProb))
   }
