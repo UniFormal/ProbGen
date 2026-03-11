@@ -4,7 +4,8 @@ package info.kwarc.probgen
 object Test {
   def main(args: Array[String]): Unit = {
     // val p = SearchProblemGenerator.make()
-    val p = MDPGenerator.make()
+    val p = BasicProbabilityProblemGenerator.make()
+    //val p = MDPGenerator.make()
     val subs = p.chooseSubproblems()
     val stex = p.toSTeX(subs)
     if (args.nonEmpty && args(0) == "--full") {

@@ -2,13 +2,39 @@ package info.kwarc.probgen
 
 /** a simple language of expressions, similar to first-order logic with integers as the base type
   */
+
+abstract class Domain {
+  def apply(v: Any) = Lit(v, this)
+}
+abstract class IntegerDomain extends Domain
+trait OrderedDomain {
+  def values: List[Any]
+}
+case class DUpto(n: Int) extends IntegerDomain with OrderedDomain {
+  def values = Range(0,n).toList
+}
+case object DNat extends IntegerDomain
+case object DInt extends IntegerDomain
+case object DString extends Domain
+case class DList(elem: Domain) extends Domain
+case object DOther extends Domain
+
+
 sealed abstract class Expr {
   def toSTeX: SText
   def toSTeXTop = SMath(toSTeX)
 }
 
+case class Context(vals: List[(String,AnyVal)]) {
+  def apply(n: String) = vals.find(_._1 == n).getOrElse(throw EvalError("undefined variable: " + n))._2
+  def apply(v: (String,AnyVal)): Context = Context(v::vals)
+}
+object Context {
+  def apply(v: (String,Int)): Context = Context(List(v))
+}
+
 object Expr {
-  def fromInt(i: Int) = Lit(i)
+  def fromInt(i: Int) = DInt(i)
 
   def fromAnyO(a: Any): Option[Expr] = {
     try {Some(fromAny(a))}
@@ -16,8 +42,8 @@ object Expr {
   }
   def fromAny(a: Any): Expr = a match {
     case e: Expr => e
-    case i: Int => Lit(i)
-    case s: String => NameLit(s)
+    case i: Int => DInt(i)
+    case s: String => DString(s)
     case l: List[_] => FinSeq(l.map(fromAny)*)
     case s: Set[_] => FinSet(s.toList.map(fromAny)*)
     case t: Tuple2[_,_] => Tuple(t.productIterator.toList.map(fromAny)*)
@@ -63,7 +89,7 @@ case class Var(name: String) extends Term {
   override def toString = name
 }
 /** an integer literal */
-case class Lit(value: Int) extends Term {
+case class Lit(value: Any, domain: Domain) extends Term {
   override def toString = value.toString
   def toSTeX = SPlainText(toString)
 }
@@ -73,13 +99,10 @@ case class Lit(value: Int) extends Term {
   */
 abstract class OtherExpr extends Expr
 case class OtherApply(op: OtherOper, args: List[Expr]) extends Expr with OperApply
-case class NameLit(name: String) extends OtherExpr {
-  override def toString = name
-  def toSTeX = SPlainText(toString)
-}
 object NameLit {
   // 0 -> a, 1 -> b, ...
-  def apply(i: Int): NameLit = NameLit((97+i).toChar.toString)
+  def apply(i: Int): Lit = DString((97+i).toChar.toString)
+  def applyUpper(i: Int): Lit = DString((65+i).toChar.toString)
 }
 
 sealed abstract class Oper {
@@ -122,7 +145,7 @@ sealed abstract class COper(val stexname: String, val flexary: Boolean) extends 
 /** other operators, see [[OtherExpr]] */
 sealed abstract class OtherOper(val stexname: String, val flexary: Boolean) extends Oper {
   def apply(args: Expr*): Expr = OtherApply(this, args.toList)
-  def apply(is: List[Int]): Expr = apply(is.map(Lit(_))*)
+  def apply(is: List[Int]): Expr = apply(is.map(Lit(_,DOther))*)
   def unapply(f: Expr) = f match {
     case OtherApply(op,as) if op == this => Some(as)
     case _ => None
@@ -133,7 +156,7 @@ object FOper {
   val all = List(Equals, NotEquals, Less, LessEq, Divides)
 }
 object TOper {
-  val all = List(Plus,Times,Minus,Exp)
+  val all = List(Plus,Times,Minus,Min,Max)
 }
 
 /* individual predicate symbols, function symbols, connectives, etc. */
@@ -149,15 +172,16 @@ object Neg extends COper("lneg", true)
 /* predicate symbols */
 object Equals extends ChainedFOper("equals", false)
 object NotEquals extends FOper("nequals", false)
-object Less extends ChainedFOper("intless", false)
-object LessEq extends ChainedFOper("intle", false)
-object Divides extends ChainedFOper("divides", false)
+object Less extends ChainedFOper("intlessthan", false)
+object LessEq extends ChainedFOper("intlethan", false)
+object Divides extends ChainedFOper("intdivisible", false)
 
 /* function symbols */
 object Plus extends TOper("intplus", true)
 object Minus extends TOper("intminus", true, Some(2))
 object Times extends TOper("inttimes", true)
-object Exp extends TOper("intpower", true, Some(2))
+object Divide extends TOper("realdivide", false)
+object Exp extends TOper("intpower", false, Some(2))
 object Mod extends TOper("intmod", false, Some(2))
 object Min extends TOper("intmin", true) {
   override def minArity = Some(2)
@@ -232,7 +256,8 @@ object Evaluator {
 
   /** evaluates terms to integers */
   def apply(t: Term)(implicit ctx: Context): Int = t match {
-    case Lit(i) => i
+    case Lit(i,d:IntegerDomain) => i.asInstanceOf[Int]
+    case Lit(i,_) => throw EvalError("can't evaluate non-integer domain to an integer")
     case Var(n) => ctx(n) match {
       case v: Int => v
       case v => throw EvalError("variable not integer: " + n + "=" + v)
@@ -249,6 +274,7 @@ object Evaluator {
         }
       } else op match {
         case Minus => fsE(0) - fsE(1)
+        case Divide => fsE(0)/fsE(1)
         case Exp => exp(fsE(0), fsE(1))
         case Mod =>
           val e = fsE(1)
@@ -259,13 +285,4 @@ object Evaluator {
   def exp(a: Int, b: Int): Int = {
     if (b == 0) 1 else a*exp(a,b-1)
   }
-}
-
-
-case class Context(vals: List[(String,AnyVal)]) {
-  def apply(n: String) = vals.find(_._1 == n).getOrElse(throw EvalError("undefined variable: " + n))._2
-  def apply(v: (String,AnyVal)): Context = Context(v::vals)
-}
-object Context {
-  def apply(v: (String,Int)): Context = Context(List(v))
 }

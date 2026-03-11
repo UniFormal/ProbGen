@@ -18,11 +18,11 @@ object SearchProblemGenerator extends ProblemGenerator[ExpressionBasedDeterminis
     // lower/upper bound for number of states
     val numStates = Generator.chooseInt(minStates,maxStates+1)
     val stateList = Range(0,numStates).toList
-    val states = FinSet(stateList.map(Lit(_))*)
+    val states = FinSet(stateList.map(DInt(_))*)
     log("choosing states: " + states)
     // lower/upper bound for number of actions; actions are numbers similar in size to the states
     val actionList = Generator.chooseSome(stateList, minActions, maxActions, false).sorted
-    val actions = FinSet(actionList.map(Lit(_))*)
+    val actions = FinSet(actionList.map(DInt(_))*)
     log("choosing actions: " + actions)
     // the initial state is some state
     val initial = if (Generator.chooseBoolean(0.5)) 0 else numStates-1
@@ -35,7 +35,7 @@ object SearchProblemGenerator extends ProblemGenerator[ExpressionBasedDeterminis
       // goal conditions are of the form p(s,i) where p is some predicate and i is a number
       val goalPred = Generator.choose(List(Less,LessEq,Divides,Equals))
       val goalArg = Generator.choose(Range(0,numStates).toList)
-      goal = goalPred(Var("s"), Lit(goalArg))
+      goal = goalPred(Var("s"), DInt(goalArg))
       // compute the set of goal states and check if we like it
       val goalStates = Range(0,numStates).filter(s => Evaluator(goal)(using Context("s" -> s)))
       val numGoalStates = goalStates.length
@@ -50,7 +50,7 @@ object SearchProblemGenerator extends ProblemGenerator[ExpressionBasedDeterminis
         good = true
         if (numGoalStates == 1) {
           // if there is only one goal state, use the equality as the predicate
-          goal = Equals(Var("s"), Lit(goalStates.head))
+          goal = Equals(Var("s"), DInt(goalStates.head))
         }
       }
     }
@@ -71,10 +71,10 @@ object SearchProblemGenerator extends ProblemGenerator[ExpressionBasedDeterminis
         term1
       } else {
         val op2 = Generator.choose(List(Plus,Minus))
-        op2(term1, Lit(lit))
+        op2(term1, DInt(lit))
       }
       log("  " + term2)
-      val trans = if (transitionModulo) Mod(term2,Lit(numStates)) else term2
+      val trans = if (transitionModulo) Mod(term2,DInt(numStates)) else term2
       searchProb = ExpressionBasedDeterminisiticSearchProblem(numStates,actionList,trans,initial,goal)
       // solve the resulting search problem and check if we like the solutions
       val solutions = searchProb.solutions

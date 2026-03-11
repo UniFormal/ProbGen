@@ -29,8 +29,8 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
     Evaluator(goalForm)(using Context("s" -> s))
   }
 
-  private def stateName(s: Int): Expr = if (presentArithmetically) Lit(s) else NameLit(s)
-  private def actionName(a: Int): Expr = if (presentArithmetically) Lit(a) else NameLit(26-actions.length+actions.indexOf(a))
+  private def stateName(s: Int): Expr = if (presentArithmetically) DInt(s) else NameLit(s)
+  private def actionName(a: Int): Expr = if (presentArithmetically) DInt(a) else NameLit(26-actions.length+actions.indexOf(a))
   def namedSolutions = solutions.map(_.rename(stateName,actionName))
 
   /** renders the intro text of the problem */
@@ -74,7 +74,7 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
         }
       }
       val colHeads = actions.map(a => actionName(a).toSTeXTop)
-      SCenter(List(STabular(colHeads, rowHeads, cells)))
+      SCenter(List(STabular(SText(""), colHeads, rowHeads, cells)))
     }
     part1 + part2
   }

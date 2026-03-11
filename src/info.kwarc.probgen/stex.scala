@@ -30,7 +30,7 @@ case class SParams(pars: (String,String)*) extends STeXSyntax {
 abstract class SEnvironment(name: String, level: Int = 0) extends STeXSyntax {
   def args: List[String] = Nil
   def params: SParams = SParams()
-  def body: List[STeXSyntax]
+  def body: Seq[STeXSyntax]
   override def toString = {
     val argsS = args.map(a => s"{$a}").mkString("")
     val spacebefore = if (level == 1) "\n" else if (level >= 2) "\n%%%%%%%%%\n" else ""
@@ -75,27 +75,28 @@ case class SEnumerate(items: SText*) extends SList("enumerate", items.toList)
 case class SItem(body: SText) extends STeXSyntax {
   override def toString = "\\item " + body
 }
-case class SCenter(body: List[STeXSyntax]) extends SEnvironment("center")
-case class STabular(columnHeads: List[SText], rowHeads: List[SText], cells: List[(Int,Int,SText)]) extends SEnvironment("tabular") {
-  def makeRow(cs: List[SText]): SText = SSnippet(cs.head :: cs.tail.flatMap(s => List(SText(" & "), s)) ::: List(SText("\\\\")))
+case class SCenter(body: Seq[STeXSyntax]) extends SEnvironment("center")
+case class STabular(cellHead: SText, columnHeads: Seq[SText], rowHeads: Seq[SText], cells: Seq[(Int,Int,SText)]) extends SEnvironment("tabular") {
+  def makeRow(cs: Seq[SText]): SText = cs.head ++ cs.tail.flatMap(s => Seq(SText(" & "), s)) ++ Seq(SText("\\\\"))
   override def args = {
     val cs = Range(0,columnHeads.length).map(_ => "c").mkString("")
     List("l|"++ cs)
   }
   def body = {
-    val headerRow = makeRow(SText("") :: columnHeads)
-    val bodyRows =
+    val headerRow = makeRow(cellHead +: columnHeads)
+    val bodyRows = {
       rowHeads.zipWithIndex.map {case (r,i) =>
         val values = Range(0,columnHeads.length).toList
           .map(j => cells.find(c => c._1==i && c._2 == j).map(_._3).getOrElse(SText(" ")))
         makeRow(r :: values)
       }
-    headerRow :: SText("\\hline") :: bodyRows
+    }
+    headerRow +: SText("\\hline") +: bodyRows
   }
 }
 
 trait SText extends STeXSyntax {
-  def ++(more: List[STeXSyntax]) = SSnippet(this::more)
+  def ++(more: Seq[STeXSyntax]) = SSnippet(this+:more)
   def +(more: STeXSyntax) = if (more == null) this else SSnippet(List(this,more))
 }
 
@@ -108,9 +109,9 @@ case class SMaths(body: List[SText]) extends SText {
   override def toString = body.map(b => SMath(b).toString).mkString(", ")
 }
 
-case class SSnippet(body: List[STeXSyntax], sep: String = "") extends SText {
+case class SSnippet(body: Seq[STeXSyntax], sep: String = "") extends SText {
   override def toString = body.mkString(sep)
-  def +(rest: SSnippet) = copy(body = this.body:::rest.body)
+  def +(rest: SSnippet) = copy(body = this.body++rest.body)
 }
 
 case class SPlainText(body: String) extends SText {
