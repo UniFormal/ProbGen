@@ -2,7 +2,7 @@ package info.kwarc.probgen
 
 import SText._
 
-case class MDPProblem(mdp: MDP, isPolIter: Boolean) extends Problem[MDPProblem] {
+case class MDPProblem(mdp: MDP,isPolIter: Boolean) extends Problem[MDPProblem] {
   def round(d: Double): String = {
     val big = BigDecimal(d)
     big.setScale(3, BigDecimal.RoundingMode.HALF_UP).toString.replaceAll("0*$","").replaceAll("\\.$","")
