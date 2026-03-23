@@ -9,7 +9,7 @@ case class Path[S,A](start: S, length: Int, _steps: List[(A,S)]) extends STeXAbl
     Path(rs(start), length, _steps.map({case (s,a) => (ra(s),rs(a))}))
   def toSTeX = {
     val startS = SText(start.toString)
-    val stepsS = steps.map {case (a,s) => x"\stackrel{$a}{\to}$s"}
+    val stepsS = steps.map {case (a,s) => m"\stackrel{$a}{\to}$s"}
     SMath(SSnippet(startS::stepsS))
   }
   def add(a: A, s: S) = Path(start, length+1, (a,s)::_steps)

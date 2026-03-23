@@ -156,13 +156,16 @@ class SMacro(name: String) {
 
 object SText {
   implicit class STextInterpolator(sc: StringContext) {
-    def x(args: Any*): SText = {
+    def m(args: Any*): SText = interpolate(true, args*)
+    def x(args: Any*): SText = interpolate(false, args*)
+    def interpolate(startInMathmode: Boolean, args: Any*): SText = {
+      var inMath = startInMathmode
       var partsS = sc.parts.toList.map {s =>
         val sR = s.replace('§', '$').replace("\\n","\n")
         SPlainText(sR)
       }
       var snippets: List[STeXSyntax] = List(partsS.head)
-      var inMath = partsS.head.togglesMath
+      inMath = inMath ^ partsS.head.togglesMath
       partsS = partsS.tail
       val argsS = args.toList.foreach {arg =>
         val argS = arg match {
