@@ -10,17 +10,12 @@ package info.kwarc.probgen
   * Because Scala predefines $, we use § instead of $ as the latex math mode switch.
   */
 
-/** mixin for objects that can be rendered as STeX */
-trait STeXAble {
-  def toSTeX: STeXSyntax
-}
-
 /** parent type of all stex syntax */
-trait STeXSyntax extends STeXAble {
-  def toSTeX = this
+trait STeXSyntax {
+  def toHTML: String = ??? // TODO: make this abstract and implement for every subclass
 }
 
-case class SParams(pars: (String,String)*) extends STeXSyntax {
+case class SParams(pars: (String,String)*) {
   override def toString = {
     if (pars.isEmpty) "" else
       pars.map {case (key,value) => s"$key={$value}"}.mkString("[", ", ", "]")
@@ -100,13 +95,9 @@ trait SText extends STeXSyntax {
   def +(more: STeXSyntax) = if (more == null) this else SSnippet(List(this,more))
 }
 
-case class SMath(body: SText) extends SText {
-  override def toString = "$" + body.toString + "$"
-}
-
-/* comma-separated sequence of math objects */
-case class SMaths(body: List[SText]) extends SText {
-  override def toString = body.map(b => SMath(b).toString).mkString(", ")
+case class SMath(expr: Expr) extends SText {
+  override def toString = "$" + expr.toSTeX + "$"
+  //def toHTML = "<math>" + expr.toHTML + "</math>"
 }
 
 case class SSnippet(body: Seq[STeXSyntax], sep: String = "") extends SText {
@@ -116,31 +107,9 @@ case class SSnippet(body: Seq[STeXSyntax], sep: String = "") extends SText {
 
 case class SPlainText(body: String) extends SText {
   override def toString = body
-  def togglesMath = {
-    var i = 0
-    val len = body.length
-    var inmath = false
-    while (i < len) {
-      val c = body(i)
-      if (c == '$') {
-        if (i+1<len && body(i+1) == '$') i += 1
-        inmath = !inmath
-      } else if (c == '\\') {
-        i += 1
-        if (i<len) {
-          val d = body(i)
-          if (d == '(' || d == '[' || d == ')' || d == ']') {
-            inmath = !inmath
-          }
-        }
-      }
-      i += 1
-    }
-    inmath
-  }
 }
 
-case class SMacroApplication(name: String, args: List[SText], flexary: Boolean) extends SText {
+case class SMacroApplication(name: String, args: Seq[SText], flexary: Boolean) extends SText {
   override def toString = {
     val command = "\\" + name
     val argsX = args.map(_.toString)
@@ -156,40 +125,30 @@ class SMacro(name: String) {
 
 object SText {
   implicit class STextInterpolator(sc: StringContext) {
-    def m(args: Any*): SText = interpolate(true, args*)
-    def x(args: Any*): SText = interpolate(false, args*)
-    def interpolate(startInMathmode: Boolean, args: Any*): SText = {
-      var inMath = startInMathmode
+    def x(args: Any*): SText = {
       var partsS = sc.parts.toList.map {s =>
         val sR = s.replace('§', '$').replace("\\n","\n")
         SPlainText(sR)
       }
       var snippets: List[STeXSyntax] = List(partsS.head)
-      inMath = inMath ^ partsS.head.togglesMath
       partsS = partsS.tail
       val argsS = args.toList.foreach {arg =>
         val argS = arg match {
-          case sx: STeXAble => sx.toSTeX
-          case sx: List[_] if sx.forall(_.isInstanceOf[STeXAble]) =>
-            SSnippet(sx.map(_.asInstanceOf[STeXAble].toSTeX),", ")
           case s: String => apply(s)
+          case f: Form => SMath(f)
           case a => Expr.fromAnyO(a) match {
-            case Some(e) => if (inMath) e.toSTeX else e.toSTeXTop
+            case Some(e) => SMath(e)
             case None => SPlainText(a.toString)
           }
         }
         snippets ::= argS
         snippets ::= partsS.head
-        inMath = inMath ^ partsS.head.togglesMath
         partsS = partsS.tail
       }
       SSnippet(snippets.reverse)
     }
   }
 
-  def make(a: Any) = x"$a"
   def apply(args: STeXSyntax*): SText = SSnippet(args.toList)
   def apply(s: String): SText = SPlainText(s)
-  implicit def fromInt(i: Int): SText = SPlainText(i.toString)
-  def !(s: String) = SPlainText(s)
 }
