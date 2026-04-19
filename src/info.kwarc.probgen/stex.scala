@@ -9,58 +9,16 @@ package info.kwarc.probgen
   * Within the " ", scala object O can be given as ${O} most of these can be converted into stex automatically.
   * Because Scala predefines $, we use § instead of $ as the latex math mode switch.
   */
+
+/** mixin for objects that can be rendered as STeX */
 trait STeXAble {
   def toSTeX: STeXSyntax
 }
 
-// newly added by mostafa
- trait STeXSyntax {
- def toSTeX = this
-
- // NEW: HTML renderer
- def toHTML: String = this match {
-
- case SProblem(intro, subs) =>
- s"""
- <div class="problem-block">
- <p>${intro.toHTML}</p>
-        ${subs.map(_.toHTML).mkString("<br>")}
-      </div>
- """
-
- case SSubproblem(pts, question, solution) =>
- s"""
- <div class="subproblem">
- <b>[$pts pts]</b><br>
-        ${question.toHTML}
-      </div>
- """
-
- case SSolution(_, body) =>
- "" // hide solutions for now
-
- case SItemize(items @ _*) =>
- "<ul>" + items.map(i => s"<li>${i.toHTML}</li>").mkString + "</ul>"
-
- case SText =>
- this.toString
-
-
- case _ =>
- this.toString
- }
- }
-//new added 2
- 
- //
-
-/** mixin for objects that can be rendered as STeX */
-
-
-/** parent type of all stex syntax
+/** parent type of all stex syntax */
 trait STeXSyntax extends STeXAble {
   def toSTeX = this
-}*/
+}
 
 case class SParams(pars: (String,String)*) extends STeXSyntax {
   override def toString = {
@@ -117,12 +75,6 @@ case class SEnumerate(items: SText*) extends SList("enumerate", items.toList)
 case class SItem(body: SText) extends STeXSyntax {
   override def toString = "\\item " + body
 }
-
-
-
-
-
-/////////
 case class SCenter(body: Seq[STeXSyntax]) extends SEnvironment("center")
 case class STabular(cellHead: SText, columnHeads: Seq[SText], rowHeads: Seq[SText], cells: Seq[(Int,Int,SText)]) extends SEnvironment("tabular") {
   def makeRow(cs: Seq[SText]): SText = cs.head ++ cs.tail.flatMap(s => Seq(SText(" & "), s)) ++ Seq(SText("\\\\"))
@@ -164,9 +116,6 @@ case class SSnippet(body: Seq[STeXSyntax], sep: String = "") extends SText {
 
 case class SPlainText(body: String) extends SText {
   override def toString = body
-//new added
-
-//
   def togglesMath = {
     var i = 0
     val len = body.length

@@ -3,14 +3,13 @@ package info.kwarc.probgen
 import SText._
 
 /** a path in a transition system with states from S and actions from A */
-case class Path[S,A](start: S, length: Int, _steps: List[(A,S)]) extends STeXAble {
+case class Path[S,A](start: S, length: Int, _steps: List[(A,S)]) extends ExprLike {
   override def toString = start.toString + steps.map{case (a,s) => s" ~$a~> $s"}.mkString("")
   def rename[T,B](rs: S => T, ra: A => B) =
     Path(rs(start), length, _steps.map({case (s,a) => (ra(s),rs(a))}))
-  def toSTeX = {
-    val startS = SText(start.toString)
-    val stepsS = steps.map {case (a,s) => m"\stackrel{$a}{\to}$s"}
-    SMath(SSnippet(startS::stepsS))
+  def toExpr = {
+    val stepsM = steps.flatMap {case (a,s) => List(Expr(a), Expr(s))}
+    TransitionChain(Expr(start)::stepsM *)
   }
   def add(a: A, s: S) = Path(start, length+1, (a,s)::_steps)
   def last = if (_steps.isEmpty) start else _steps.head._2

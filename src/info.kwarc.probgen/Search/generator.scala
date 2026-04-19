@@ -11,7 +11,7 @@ object SearchProblemGenerator extends ProblemGenerator[ExpressionBasedDeterminis
   val minSolutionLength = 4
   val maxSolutions = Some(4)
   val minActionsInSolution = 2
-  def getTransitionModulo = Generator.chooseBoolean(0.0)
+  def getTransitionModulo = Generator.chooseBoolean(0.5)
   def getPresentArithmetically = Generator.chooseBoolean(0.5)
 
   def make(): ExpressionBasedDeterminisiticSearchProblem = {
@@ -56,11 +56,12 @@ object SearchProblemGenerator extends ProblemGenerator[ExpressionBasedDeterminis
     }
     // loop until a good transition function is found
     log("choosing transition operation")
-    val transitionModulo = getTransitionModulo
+    var transitionModulo = true
     var searchProb: ExpressionBasedDeterminisiticSearchProblem = null
     good = false
     var tries = 0 // count attempts and abort if we can't find anything good
     while (!good && tries < 100) {
+      transitionModulo = getTransitionModulo
       tries += 1
       // the transition function is of the form (s op a [op' i]) modulo number of states
       // where op, op' are random operators and i is a number
@@ -73,8 +74,8 @@ object SearchProblemGenerator extends ProblemGenerator[ExpressionBasedDeterminis
         val op2 = Generator.choose(List(Plus,Minus))
         op2(term1, DInt(lit))
       }
-      log("  " + term2)
       val trans = if (transitionModulo) Mod(term2,DInt(numStates)) else term2
+      log("  " + trans)
       searchProb = ExpressionBasedDeterminisiticSearchProblem(numStates,actionList,trans,initial,goal)
       // solve the resulting search problem and check if we like the solutions
       val solutions = searchProb.solutions

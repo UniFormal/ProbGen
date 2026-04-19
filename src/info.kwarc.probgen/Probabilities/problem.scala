@@ -1,19 +1,20 @@
 package info.kwarc.probgen
 
 import SText._
+import Expr._
 
 /**   */
 case class BasicProbabilityProblem(setting: BasicProbability) extends Problem[BasicProbabilityProblem] {
   def intro() = {
     val varsLower = setting.varNames.map(_.toLowerCase)
-    val cellHead = x"§\uProb{${setting.varNames.zip(varsLower).map({case (rv,v) => rv + "=" + v}).mkString(", ")}}§"
-    val cells = Range(0,setting.numEvents).flatMap(i => Range(0,setting.numVars).map(j => (i,j,x"§${setting.events(i)(j)}§")))
+    val cellHead = ~ Prob(setting.varNames.zip(varsLower).map({case (rv,v) => rv === v}), Nil)
+    val cells = Range(0,setting.numEvents).flatMap(i => Range(0,setting.numVars).map(j => (i,j, ~ DInt(setting.events(i)(j)))))
     SSnippet(List(
       x"Consider the following joint probability distribution of random variables ${setting.varNames}.",
-      SCenter(Seq(STabular(cellHead, varsLower.map(v => x"§$v§"), setting.eventNames.map(n => x"§$n§"), cells.toList)))
+      SCenter(Seq(STabular(cellHead, varsLower.map(v => ~v), setting.eventNames.map(n => ~n), cells.toList)))
     ))
   }
-  def eventNamesShort = x"§${setting.eventNames.head}§, \ldots, §${setting.eventNames.last}§"
+  def eventNamesShort = ~ RangeSet(setting.eventNames.head, setting.eventNames.last)
 
   object GiveProb extends Subproblem("giveprob", 2, 2) {
     var form: Form = null

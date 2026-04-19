@@ -1,6 +1,7 @@
 package info.kwarc.probgen
 
 import SText._
+import Expr._
 
 /** a concrete representation of a deterministic fully observable search problem that can be randomly generated
   * @param numStates states are {0,...,numStates}
@@ -20,7 +21,7 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
     * Actions are only applicable if the transition results in a legal state.
     */
   def trans(s: Int,a: Int) = {
-    val t = Evaluator(successor)(using Context("s" -> s)("a" -> a))
+    val t = Evaluator(successor)(using Context("s" -> s)("a" -> a)).asInt
     if (states contains t) List(t) else Nil
   }
 
@@ -29,21 +30,24 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
     Evaluator(goalForm)(using Context("s" -> s))
   }
 
-  private def stateName(s: Int): Expr = if (presentArithmetically) DInt(s) else NameLit(s)
-  private def actionName(a: Int): Expr = if (presentArithmetically) DInt(a) else NameLit(26-actions.length+actions.indexOf(a))
+  private def stateName(s: Int): Term = if (presentArithmetically) DInt(s) else NameLit(s)
+  private def actionName(a: Int): Term = if (presentArithmetically) DInt(a) else NameLit(26-actions.length+actions.indexOf(a))
   def namedSolutions = solutions.map(_.rename(stateName,actionName))
 
   /** renders the intro text of the problem */
   def intro() = {
-    // use x" ..." to generate tex syntax (Scala string interpolation)
-    // use $variable or ${expression} to insert other objects
-    // - expressions are automatically converted into stex syntax
-    // - integers, strings etc. are inserted as is
-    // use § instead of $ for tex math mode
+    // build match expressions first using the Expr API, see in particular
+    // - the apply methods for expressions like "U"("x") or Plus(a,b)
+    // - the methods for building infix expressions such as a === b or a+b
+    // - the unary operator ! to convert any Scala object into the corresponding expression
+    // use ~ to insert an Expr into latex, strings are automatically converted to variable references
+    // use x"..." to generate non-math latex syntax (Scala string interpolation)
+    // - use $variable or ${expression} to insert other objects
+    // - use §x§ for individual identifiers or symbols (but not complex expressions) that should appear as $x$
     val (tr,ins,go) = if (presentArithmetically) {
-      (x"${GivenBy("T",List("s","a"), FinSet(successor))} (where all operations are taken modulo $numStates)",
-       FinSet(initial),
-       goalForm
+      (~("T"("s","a") === FinSet(successor)) + x"(where all operations are taken modulo $numStates)",
+       ~ FinSet(initial),
+       ~ goalForm
       )
     } else {(
       x"as given by the table below (where empty cells indicate inapplicable actions)",
@@ -69,11 +73,11 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
       }
       val cells = states.zipWithIndex.flatMap {case (s,i) =>
         actions.zipWithIndex.map {case (a,j) =>
-          val t = trans(s,a).headOption.map(s => stateName(s).toSTeXTop).getOrElse(SText(" "))
+          val t = trans(s,a).headOption.map(s => ~stateName(s)).getOrElse(SText(" "))
           (i,j,t)
         }
       }
-      val colHeads = actions.map(a => actionName(a).toSTeXTop)
+      val colHeads = actions.map(a => ~actionName(a))
       SCenter(List(STabular(SText(""), colHeads, rowHeads, cells)))
     }
     part1 + part2
@@ -151,7 +155,7 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
       x"Give a solution."
     }
     def solution() = {
-      x"The solutions include ${SItemize(namedSolutions.take(5).map(SText.make)*)}."
+      x"The solutions include ${SItemize(namedSolutions.take(5).map(p => ~ p.toExpr)*)}."
     }
   }
 
@@ -163,7 +167,7 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
       x"Give all $n solution$plural whose length is at most $searchDepth."
     }
     def solution() = {
-      x"The solution(s) is/are ${SItemize(namedSolutions.map(SText.make)*)}."
+      x"The solution(s) is/are ${SItemize(namedSolutions.map(p => ~p.toExpr)*)}."
     }
   }
 

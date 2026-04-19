@@ -27,7 +27,7 @@ class BasicProbability(val domainSizes: List[Int]) {
   def eventSum(es: List[Event]) = Plus(es.map(e => DString(eventName(e)))*)
   def valid = numVars + numEvents <= 26
   def eval(form: Form, ev: Event) = {
-    Evaluator(form)(Context(varNames.zip(ev)))
+    Evaluator(form)(using Context(varNames.zip(ev)))
   }
   // f must be an expression using the variables
   // P(f) in terms of event names
