@@ -36,7 +36,7 @@ case class MDPProblem(mdp: MDP,isPolIter: Boolean) extends Problem[MDPProblem] {
   }
 
   // 2. THEORY (VI)
-  object bellmanEqVI extends Subproblem("theory", 2, 3) {
+  /*object bellmanEqVI extends Subproblem("theory", 2, 3) {
     override def applicable() = !isPolIter
     def question() = x"State the Bellman Optimality Equation for ${U("s")}."
     def solution() = SMath(U("s") ===
@@ -46,10 +46,31 @@ case class MDPProblem(mdp: MDP,isPolIter: Boolean) extends Problem[MDPProblem] {
         )
       )
     )
+  }*/  // compile error
+
+  object bellmanEqVI extends Subproblem("theory", 2, 3) {
+    override def applicable() = !isPolIter
+
+    def question() =
+      x"State the Bellman Optimality Equation for ${U("s")}."
+
+    def solution() = {
+      val expr =
+        U("s") ===
+          R("s") +
+            Var("\\gamma") * BigMax("a" in "A")(
+              Sum("s'" in "S")(
+                Prob(List("s'"), List("s", "a")) * U("s'")
+              )
+            )
+
+      SMath(SPlainText(expr.toSTeX))
+    }
   }
+  ////
 
   // 3. THEORY (PI)
-  object bellmanEqPI extends Subproblem("theory", 2, 3) {
+  /*object bellmanEqPI extends Subproblem("theory", 2, 3) {
     override def applicable() = isPolIter
     def question() = x"State the Bellman Expectation Equation for a fixed policy §\pi§, i.e., for ${U("\\pi","s")}."
     def solution() = SMath(U("\\pi", "s") ===
@@ -57,7 +78,27 @@ case class MDPProblem(mdp: MDP,isPolIter: Boolean) extends Problem[MDPProblem] {
          Prob(List("s'"), List("s", "\\pi"("s"))) * U("\\pi","s'")
        )
     )
+  }*/  //compile error
+
+  object bellmanEqPI extends Subproblem("theory", 2, 3) {
+    override def applicable() = isPolIter
+
+    def question() =
+      x"State the Bellman Expectation Equation for a fixed policy §\pi§, i.e., for ${U("\\pi", "s")}."
+
+    def solution() = {
+      val expr =
+        U("\\pi", "s") ===
+          R("s") +
+            Var("\\gamma") * Sum("s'" in "S")(
+              Prob(List("s'"), List("s", Var("\\pi")("s"))) * U("\\pi", "s'")
+            )
+
+      SMath(SPlainText(expr.toSTeX))
+    }
   }
+  
+  //////
 
   // 4. CALCULATION (VI)
   object calcOneStepVI extends Subproblem("calc", 3, 4) {

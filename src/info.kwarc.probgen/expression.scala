@@ -22,7 +22,9 @@ case object DOther extends Domain
 
 
 sealed abstract class Expr {
-  def unary_~ = SMath(this)
+ // def unary_~ = SMath(this) // compile error
+ def unary_~ = SMath(SPlainText(this.toSTeX))
+ ///
   def toSTeX: String
   def toHTML: String
 }
@@ -76,8 +78,10 @@ sealed trait OperApply {
     }
   }
   def toSTeX = {
-    val argsS = args.map(a => SPlainText(a.toSTeX))
-    SMacroApplication(op.stexname, argsS, op.flexary).toString
+    /*val argsS = args.map(a => SPlainText(a.toSTeX))
+    SMacroApplication(op.stexname, argsS, op.flexary).toString*/ //compile error
+    val argsS = args.map(a => SPlainText(a.toSTeX)).toList
+    SMacroApplication(op.stexname, argsS, op.flexary)
   }
   def toHTML = s"<mrow>${op.toHTML}${args.map(_.toHTML)}</mrow>"
 }
@@ -151,7 +155,9 @@ case class Prob(of: Seq[Expr], conds: Seq[Expr]) extends Term {
       ("uProb", Seq(SPlainText(ofS)))
     else
       ("CondProb", Seq(SPlainText(ofS), SPlainText(condsS)))
-    SMacroApplication(name,args,false).toString
+    ///SMacroApplication(name,args,false).toString  //compile error
+    SMacroApplication(name, args.toList, false).toString
+    ////
   }
   def toHTML = {
     val ofH = s"<mfenced>${of.map(_.toHTML).mkString("")}</mfenced>"
