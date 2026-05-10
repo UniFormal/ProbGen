@@ -11,9 +11,9 @@ import java.io.OutputStream
 
 object WebServer {
 
-  
+
   // GENERATE 3 PROBLEMS 
-  
+
   def generateProblems(): String = {
 
     val sb = new StringBuilder
@@ -60,9 +60,9 @@ object WebServer {
     sb.toString()
   }
 
-  
+
   // MAIN SERVER
-  
+
   def main(args: Array[String]): Unit = {
 
     val server = HttpServer.create(new InetSocketAddress(8080), 0)
@@ -71,6 +71,14 @@ object WebServer {
 
       val content = generateProblems()
 
+      // FIX: MathJax config — the original ['$$','$$'] used double-dollar as inline
+      // delimiter which is non-standard and clashes with display math.
+      // MathJax 3 recognises \(...\) for inline by default, but ONLY if the tex
+      // config does not override inlineMath without including it.
+      // We explicitly list both ['$','$'] and ['\\(','\\)'] so all output from
+      // SMath.toHTML (which emits \(...\)) is processed correctly.
+      // Note: in a Scala string '\\\\(' becomes '\\(' in the HTML/JS source,
+      // which is what the browser JS engine sees as the two-char sequence \( .
       val html =
         s"""
 <html>
@@ -81,7 +89,7 @@ object WebServer {
 <script>
 window.MathJax = {
   tex: {
-    inlineMath: [['$$', '$$'], ['\\(', '\\)']]
+    inlineMath: [['$$', '$$'], ['\\\\(', '\\\\)']]
   }
 };
 </script>
@@ -148,6 +156,7 @@ $content
       val bytes = html.getBytes("UTF-8")
 
       exchange.getResponseHeaders.add("Content-Type", "text/html; charset=UTF-8")
+
       exchange.sendResponseHeaders(200, bytes.length)
 
       val os: OutputStream = exchange.getResponseBody
