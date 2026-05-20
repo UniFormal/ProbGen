@@ -31,8 +31,22 @@ trait STeXSyntax {
     case SProblem(intro, subs) =>
       s"""<div class="problem-block"><p>${intro.toHTML}</p>${subs.map(_.toHTML).mkString("\n")}</div>"""
 
-    case SSubproblem(pts, question, _) =>
-      s"""<div class="subproblem"><b>[$pts pts]</b><br>${question.toHTML}</div>"""
+    case s: SSubproblem =>
+      val id   = s.hashCode.abs.toString
+      val ans  = s.solution.body.map(_.toString).mkString(" ").trim
+        .replaceAll("\\s+", " ")
+        .toLowerCase
+      s"""<div class="subproblem" data-id="$id" data-pts="${s.pts}">
+        <b>[${s.pts} pts]</b> ${s.question.toHTML}
+        <div class="answer-row">
+          <input type="text" id="ans-$id" placeholder="Your answer (expression in a..f)" autocomplete="off"/>
+          <button onclick="checkAnswer('$id')">Check</button>
+        </div>
+        <div class="feedback" id="fb-$id"></div>
+        <div class="solution-store" id="sol-$id" style="display:none">${
+        s.solution.body.map(_.toHTML).mkString(" ")
+      }</div>
+      </div>"""
 
     // 3. MATH & MACROS
     case m: SMacroApplication => m.toHTML
