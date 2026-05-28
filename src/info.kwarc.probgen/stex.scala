@@ -37,7 +37,6 @@ abstract class SEnvironment(name: String, level: Int = 0) extends STeXSyntax {
     val spacebefore = if (level == 1) "\n" else if (level >= 2) "\n%%%%%%%%%\n" else ""
     s"$spacebefore\\begin{$name}$argsS${params}\n${body.mkString("\n")}\n\\end{$name}"
   }
-  def toHTML: String = body.map(_.toHTML).mkString("\n")
 }
 
 // ---------------------------------------------------------------------------
@@ -49,7 +48,7 @@ case class SDocument(body: List[SFragment]) extends SEnvironment("document", 4) 
     """\documentclass{article}
       |\usepackage{stexlight}
       |""".stripMargin + toString
-  override def toHTML: String = body.map(_.toHTML).mkString("\n")
+  override def toHTML: String = ??? //<html><body>${body.map(_.toHTML)}
 }
 
 object SDocument {
@@ -58,7 +57,7 @@ object SDocument {
 
 case class SFragment(title: String, body: List[SProblem]) extends SEnvironment("sfragment", 3) {
   override def args = List(title)
-  override def toHTML: String = body.map(_.toHTML).mkString("\n")
+  override def toHTML: String = ??? //<div><body>${body.map(_.toHTML)}
 }
 
 case class SProblem(intro: STeXSyntax, subproblems: List[SSubproblem]) extends SEnvironment("sproblem", 2) {
@@ -87,7 +86,7 @@ case class SSubproblem(pts: Int, question: SText, solution: SSolution) extends S
 
 case class SSolution(testspace: Float, body: List[SText]) extends SEnvironment("solution") {
   override def params = SParams("testspace" -> (testspace.toString + "cm"))
-  override def toHTML: String = body.map(_.toHTML).mkString(" ")
+  override def toHTML: String = ??? // s"""<div class="solution"> ...
 }
 
 // ---------------------------------------------------------------------------
@@ -173,7 +172,7 @@ trait SText extends STeXSyntax {
 
 case class SMath(expr: Expr) extends SText {
   override def toString = "$" + expr.toSTeX + "$"
-  override def toHTML: String = s"\\(${expr.toSTeX}\\)"
+  override def toHTML: String = expr.toHTML
 }
 
 case class SSnippet(body: Seq[STeXSyntax], sep: String = "") extends SText {
@@ -185,24 +184,8 @@ case class SSnippet(body: Seq[STeXSyntax], sep: String = "") extends SText {
 case class SPlainText(body: String) extends SText {
   override def toString = body
   override def toHTML: String = body
-    .replace("\\uProb",       "P")
-    .replace("\\intmax",      "max")
-    .replace("\\intmin",      "min")
-    .replace("\\intlessthan", " &lt; ")
-    .replace("\\intlethan",   " &le; ")
-    .replace("\\intgreatthan"," &gt; ")
-    .replace("\\intgeq",      " &ge; ")
-    .replace("\\intdivisible"," | ")
-    .replace("\\nequals",     " &ne; ")
-    .replace("\\inset",       " &isin; ")
-    .replace("\\range",       "&#8230;")
-    .replace("\\\\",          "<br>")
-    .replace("\\hline",       "")
-    .replace("\\to",          "&rarr;")
-    .replace("\\mathtt{up}",    "<code>up</code>")
-    .replace("\\mathtt{down}",  "<code>down</code>")
-    .replace("\\mathtt{left}",  "<code>left</code>")
-    .replace("\\mathtt{right}", "<code>right</code>")
+    .replace("<",       "&lt;")
+    ...
 }
 
 // ---------------------------------------------------------------------------
@@ -219,58 +202,7 @@ case class SMacroApplication(name: String, args: Seq[SText], flexary: Boolean) e
     command + argsS
   }
 
-  override def toHTML: String = {
-    val a = args.map(_.toHTML)
-    val n = name.stripPrefix("\\").toLowerCase
-    n match {
-      // Probability
-      case "uprob"      | "condprob" =>
-        if (a.isEmpty) "P"
-        else if (a.length == 1) s"P(${a(0)})"
-        else s"P(${a(0)} | ${a(1)})"
-      // Arithmetic — binary/nary
-      case "intplus"       => a.mkString(" + ")
-      case "intminus"      => a.mkString(" &minus; ")
-      case "inttimes"      => a.mkString(" &middot; ")
-      case "realdivide"    => if (a.length >= 2) s"${a(0)} / ${a(1)}" else a.mkString(" / ")
-      case "intpower"      => if (a.length >= 2) s"${a(0)}<sup>${a(1)}</sup>" else a.mkString("^")
-      case "intmod"        => if (a.length >= 2) s"${a(0)} mod ${a(1)}" else a.mkString(" mod ")
-      case "intmax"        => if (a.isEmpty) "max" else "max(" + a.mkString(", ") + ")"
-      case "intmin"        => if (a.isEmpty) "min" else "min(" + a.mkString(", ") + ")"
-      case "intdivisible"  => if (a.length >= 2) s"${a(0)} | ${a(1)}" else a.mkString(" | ")
-      // Relational
-      case "equals"        => a.mkString(" = ")
-      case "nequals"       => a.mkString(" &ne; ")
-      case "intlessthan"   => a.mkString(" &lt; ")
-      case "intlethan"     => a.mkString(" &le; ")
-      case "intgreatthan"  => a.mkString(" &gt; ")
-      case "intgeq"        => a.mkString(" &ge; ")
-      case "inset"         => if (a.length >= 2) s"${a(0)} &isin; ${a(1)}" else a.mkString(" &isin; ")
-      // Logical
-      case "lconj"         => a.mkString(" &and; ")
-      case "ldisj"         => a.mkString(" &or; ")
-      case "implies"       => a.mkString(" &rArr; ")
-      case "lneg"          => "&not;" + a.mkString("")
-      // Constructors
-      case "set"           => "{" + a.mkString(", ") + "}"
-      case "tup"           => "(" + a.mkString(", ") + ")"
-      case "seq"           => a.mkString(", ")
-      case "range"         => if (a.length >= 2) s"${a(0)}&#8230;${a(1)}" else a.mkString("…")
-      case "apply"         => a.headOption.map(h => h + "(" + a.drop(1).mkString(", ") + ")").getOrElse("")
-      // MDP-specific display
-      case "transitions"   =>
-        if (a.isEmpty) ""
-        else a.head + a.tail.grouped(2).map {
-          case Seq(act, st) => s" <span class='transition-arrow'>&xrarr;<sub>$act</sub></span> $st"
-          case Seq(st)      => s" &rarr; $st"
-          case _            => ""
-        }.mkString("")
-      // Direction actions rendered as code
-      case s if s.startsWith("mathtt") => s"<code>${a.mkString}</code>"
-      // Fallback: wrap raw LaTeX in \(...\) so MathJax renders it
-      case _ => s"\\(${this.toString}\\)"
-    }
-  }
+  def toHTML: String = ??? // see when this is called and this decide how to fix things
 }
 
 class SMacro(name: String) {
