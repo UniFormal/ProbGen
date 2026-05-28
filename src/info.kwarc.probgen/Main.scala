@@ -50,6 +50,7 @@ object Main {
   }
 
   def renderProblem(title: String, gen: Problem[_]): String = {
+    // FR: store gen in a table of problem instances; retrieve the instance and its subproblem when checking a solution
     val subs = gen.chooseSubproblems()
     val prob = gen.toSTeX(subs)
     val doc  = SDocument("problem", prob)

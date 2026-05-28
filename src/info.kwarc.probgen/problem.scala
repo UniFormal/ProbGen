@@ -42,6 +42,9 @@ trait Problem[PD <: Problem[PD]] {
     def toSTeX() = {
       SSubproblem(pts, question(), SSolution(testspace, List(solution())))
     }
+    
+    // this must be called to check the user's solution
+    def checkSolution(input: String): String = ???
   }
 
   /** constrains how many subproblems are chosen from a subset of subproblems (which must be declared in this class) */
