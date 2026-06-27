@@ -4,18 +4,7 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>ProbGen — Practice Problems</title>
-
-  <!-- MathJax -->
-  <script>
-    window.MathJax = {
-      tex: { inlineMath: [['\\(', '\\)']] },
-      startup: { typeset: false }   // we call typesetPromise manually
-    };
-  </script>
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
-
   <style>
-    /* ── Reset & base ────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
@@ -25,165 +14,122 @@
       min-height: 100vh;
     }
 
-    /* ── Header ──────────────────────────────────────────────── */
     header {
       background: linear-gradient(135deg, #1a1a2e 0%, #2f80ed 100%);
       color: white;
-      padding: 24px 40px;
+      padding: 20px 40px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       box-shadow: 0 2px 8px rgba(0,0,0,.25);
     }
-    header h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: .5px; }
-    header p  { font-size: .9rem; opacity: .8; margin-top: 4px; }
+    header h1 { font-size: 1.5rem; font-weight: 700; }
+    header p  { font-size: .85rem; opacity: .8; margin-top: 3px; }
 
     #new-btn {
-      padding: 10px 22px;
+      padding: 9px 20px;
       background: white;
       color: #2f80ed;
       border: none;
       border-radius: 8px;
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 600;
       cursor: pointer;
-      transition: transform .1s, box-shadow .1s;
       box-shadow: 0 2px 6px rgba(0,0,0,.15);
+      transition: transform .1s;
     }
-    #new-btn:hover  { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,.2); }
-    #new-btn:active { transform: translateY(0); }
+    #new-btn:hover { transform: translateY(-1px); }
 
-    /* ── Main layout ─────────────────────────────────────────── */
     main {
       max-width: 960px;
-      margin: 32px auto;
-      padding: 0 24px 60px;
+      margin: 28px auto;
+      padding: 0 20px 60px;
     }
 
-    .loading {
-      text-align: center;
-      color: #666;
-      padding: 60px 0;
-      font-size: 1.1rem;
-    }
+    .loading { text-align:center; color:#666; padding:60px 0; font-size:1.1rem; }
 
-    /* ── Problem card ────────────────────────────────────────── */
+    /* Problem card */
     .problem-card {
       background: white;
       border-radius: 12px;
-      padding: 28px 32px;
-      margin-bottom: 24px;
+      padding: 24px 28px;
+      margin-bottom: 20px;
       box-shadow: 0 1px 6px rgba(0,0,0,.1);
     }
     .problem-card h2 {
-      font-size: 1.15rem;
+      font-size: 1.1rem;
       font-weight: 700;
       color: #1a1a2e;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
       padding-bottom: 10px;
       border-bottom: 2px solid #e8edf5;
     }
 
-    /* ── Problem block (intro + subproblems) ─────────────────── */
-    .problem-block .intro { margin-bottom: 14px; line-height: 1.7; }
+    .problem-block { line-height: 1.75; }
+    .problem-intro { margin-bottom: 12px; }
 
-    /* ── Subproblem ──────────────────────────────────────────── */
+    /* Subproblem */
     .subproblem {
       background: #f7f9fc;
       border-left: 4px solid #2f80ed;
-      border-radius: 0 10px 10px 0;
-      padding: 16px 20px;
-      margin: 14px 0;
+      border-radius: 0 8px 8px 0;
+      padding: 14px 18px;
+      margin: 12px 0;
     }
-    .subproblem .pts   { color: #2f80ed; font-weight: 700; margin-right: 6px; }
-    .subproblem .question { line-height: 1.7; }
+    .subproblem-question { line-height: 1.75; margin-bottom: 10px; }
 
-    /* ── Answer row ──────────────────────────────────────────── */
-    .answer-row {
-      display: flex;
-      gap: 10px;
-      margin-top: 12px;
-      align-items: stretch;
-    }
+    /* Answer row */
+    .answer-row { display:flex; gap:8px; align-items:center; }
     .answer-row input {
       flex: 1;
-      padding: 9px 14px;
+      padding: 8px 12px;
       border: 1.5px solid #ccd3de;
-      border-radius: 8px;
-      font-size: 15px;
+      border-radius: 7px;
+      font-size: 14px;
       outline: none;
-      transition: border-color .15s, box-shadow .15s;
-      background: white;
+      transition: border-color .15s;
     }
-    .answer-row input:focus {
-      border-color: #2f80ed;
-      box-shadow: 0 0 0 3px rgba(47,128,237,.12);
-    }
+    .answer-row input:focus { border-color: #2f80ed; }
     .answer-row button {
-      padding: 9px 20px;
+      padding: 8px 18px;
       background: #2f80ed;
       color: white;
       border: none;
-      border-radius: 8px;
-      font-size: 15px;
+      border-radius: 7px;
+      font-size: 14px;
       font-weight: 600;
       cursor: pointer;
-      white-space: nowrap;
       transition: background .15s;
+      white-space: nowrap;
     }
-    .answer-row button:hover     { background: #1c60b3; }
-    .answer-row button:disabled  { background: #aac4f0; cursor: default; }
+    .answer-row button:hover    { background: #1c60b3; }
+    .answer-row button:disabled { background: #aac4f0; cursor:default; }
 
-    /* ── Feedback ────────────────────────────────────────────── */
+    /* Feedback */
     .feedback {
       display: none;
-      margin-top: 10px;
-      padding: 10px 14px;
-      border-radius: 8px;
-      font-size: 14px;
+      margin-top: 8px;
+      padding: 8px 12px;
+      border-radius: 7px;
+      font-size: 13px;
       line-height: 1.5;
     }
-    .feedback.correct {
-      background: #e8faf0;
-      border: 1px solid #52c97a;
-      color: #1a6b38;
-    }
-    .feedback.wrong {
-      background: #fff2f2;
-      border: 1px solid #e05c5c;
-      color: #7a1a1a;
-    }
-    .feedback.error {
-      background: #fffbe6;
-      border: 1px solid #f0c000;
-      color: #6b5000;
-    }
+    .feedback.correct { background:#e8faf0; border:1px solid #52c97a; color:#1a6b38; }
+    .feedback.wrong   { background:#fff2f2; border:1px solid #e05c5c; color:#7a1a1a; }
+    .feedback.error   { background:#fffbe6; border:1px solid #f0c000; color:#6b5000; }
 
-    /* ── Tables (STabular) ───────────────────────────────────── */
-    table { border-collapse: collapse; margin: 14px 0; }
-    th, td {
-      border: 1px solid #bbc3d0;
-      padding: 7px 14px;
-      text-align: center;
-      font-size: 14px;
-    }
-    th { background: #eef0f5; font-weight: 600; }
+    /* Tables */
+    table { border-collapse:collapse; margin:12px 0; }
+    th, td { border:1px solid #bbc3d0; padding:6px 12px; text-align:center; font-size:13px; }
+    th { background:#eef0f5; font-weight:600; }
 
-    /* ── Lists ───────────────────────────────────────────────── */
-    ul, ol { padding-left: 24px; margin: 8px 0; }
-    li { margin: 4px 0; line-height: 1.7; }
+    /* Lists */
+    ul, ol { padding-left:22px; margin:6px 0; }
+    li { margin:3px 0; line-height:1.75; }
 
-    /* ── Code / actions ──────────────────────────────────────── */
-    code {
-      background: #eef0f5;
-      padding: 1px 5px;
-      border-radius: 4px;
-      font-family: monospace;
-      font-size: .92em;
-    }
-
-    /* ── Transition arrows (MDP paths) ──────────────────────── */
-    .transition-arrow { font-size: .85em; color: #555; }
+    /* Native MathML */
+    math { font-family: "STIX Two Math", "Cambria Math", "Latin Modern Math", serif; }
+    math[display="inline"] { display:inline; vertical-align:middle; }
   </style>
 </head>
 <body>
@@ -191,28 +137,24 @@
 <header>
   <div>
     <h1>&#127891; ProbGen</h1>
-    <p>AI/ML Practice Problems — FAU</p>
+    <p>Practice Problems</p>
   </div>
   <button id="new-btn">&#8635; New Problems</button>
 </header>
 
 <main>
-  <div id="container">
-    <p class="loading">Loading…</p>
-  </div>
+  <div id="container"><p class="loading">Loading…</p></div>
 </main>
 
 <script>
-// Allow pressing Enter in any answer input to trigger Check
-document.addEventListener('keydown', function(e) {
-  if (e.key === 'Enter' && e.target.matches('.answer-row input')) {
-    e.preventDefault();
-    e.target.nextElementSibling.click();
-  }
-});
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && e.target.matches('.answer-row input')) {
+      e.preventDefault();
+      e.target.nextElementSibling.click();
+    }
+  });
 </script>
 
-<!-- ScalaJS compiled output — path matches fastLinkJS output -->
 <script src="target/scala-3.7.4/probgen-fastopt/main.js"></script>
 
 </body>
