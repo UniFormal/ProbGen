@@ -4,7 +4,8 @@ package info.kwarc.probgen
 // Helper: converts a LaTeX math string (content between $ $) to HTML
 // ---------------------------------------------------------------------------
 object MathHTML {
-  def apply(s: String): String = s.trim match {
+  // Convert a single LaTeX token to HTML
+  def token(s: String): String = s.trim match {
     case "\\gamma"  => "<i>γ</i>"
     case "\\pi"     => "<i>π</i>"
     case "\\to"     => "<span class='sym'>→</span>"
@@ -12,12 +13,23 @@ object MathHTML {
     case "\\cdot"   => "<span class='sym'>·</span>"
     case "\\infty"  => "<span class='sym'>∞</span>"
     case "\\hline"  => ""
+    case "\\leq"    => "≤"
+    case "\\geq"    => "≥"
+    case "\\neq"    => "≠"
+    case "\\in"     => "∈"
     case cmd if cmd.startsWith("\\mathtt{") && cmd.endsWith("}") =>
       s"<span class='mathtt'>${cmd.stripPrefix("\\mathtt{").stripSuffix("}")}</span>"
     case cmd if cmd.startsWith("\\mathrm{") && cmd.endsWith("}") =>
       cmd.stripPrefix("\\mathrm{").stripSuffix("}")
-    case other =>
-      other.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    case t => t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+  }
+
+  // Convert a LaTeX math string (possibly compound like "4 \times 3") to HTML.
+  // Splits on whitespace and maps each token, then joins.
+  def apply(s: String): String = {
+    val parts = s.trim.split("\\s+")
+    if (parts.length <= 1) token(s.trim)
+    else parts.map(p => token(p.trim)).mkString(" ")
   }
 }
 
