@@ -7,6 +7,7 @@ import scala.scalajs.js.annotation.JSExportTopLevel
 
 object Main {
 
+  // Maps subproblem id -> plain text of the expected answer
   private val solutions = scala.collection.mutable.Map[String, String]()
 
   def main(args: Array[String]): Unit = {
@@ -19,7 +20,6 @@ object Main {
     solutions.clear()
     val container = document.getElementById("container").asInstanceOf[html.Element]
     container.innerHTML = "<p class='loading'>Generating problems…</p>"
-
     try {
       val sb = new StringBuilder
       sb ++= renderProblem("MDP Problem",         MDPGenerator.make())
@@ -28,8 +28,8 @@ object Main {
       container.innerHTML = sb.toString()
     } catch {
       case e: Throwable =>
-        container.innerHTML = s"<pre style='color:red;padding:20px'>ERROR: ${e.getMessage}\n${e.getClass.getName}</pre>"
-        println("ProbGen error: " + e.getMessage)
+        container.innerHTML =
+          s"<pre style='color:red;padding:20px'>ERROR: ${e.getMessage}\n${e.getClass.getName}</pre>"
         e.printStackTrace()
     }
   }
@@ -39,12 +39,13 @@ object Main {
     val prob = gen.toSTeX(subs)
     val doc  = SDocument("problem", prob)
 
-    // Collect solutions keyed by subproblem id
+    // Store solution as plain text via toText — no HTML tags, no LaTeX macros.
+    // This is exactly what a user would type when they see the rendered answer.
     doc.body.foreach { frag =>
       frag.body.foreach { p =>
         p.subproblems.foreach { sub =>
           val id  = sub.hashCode.abs.toString
-          val sol = sub.solution.body.map(_.toString).mkString(" ").trim
+          val sol = sub.solution.body.map(_.toText).mkString(" ").trim
           solutions(id) = sol
         }
       }
@@ -58,9 +59,9 @@ object Main {
 
   @JSExportTopLevel("checkAnswer")
   def checkAnswer(id: String): Unit = {
-    val inputEl  = document.getElementById(s"ans-$id").asInstanceOf[html.Input]
-    val fbEl     = document.getElementById(s"fb-$id").asInstanceOf[html.Element]
-    val userAns  = inputEl.value.trim
+    val inputEl = document.getElementById(s"ans-$id").asInstanceOf[html.Input]
+    val fbEl    = document.getElementById(s"fb-$id").asInstanceOf[html.Element]
+    val userAns = inputEl.value.trim
 
     if (userAns.isEmpty) {
       showFeedback(fbEl, "error", "Please enter an answer first.")
@@ -75,25 +76,27 @@ object Main {
       showFeedback(fbEl, "correct", "&#10003; Correct!")
     } else {
       inputEl.style.borderColor = "#e05c5c"
-      val solEl  = document.getElementById(s"sol-$id")
-      val expHtml = if (solEl != null) solEl.asInstanceOf[html.Element].innerHTML
-      else escHtml(expected)
-      showFeedback(fbEl, "wrong", s"&#10007; Not quite. Expected: <strong>$expHtml</strong>")
+      // Show the expected plain text in the feedback
+      showFeedback(fbEl, "wrong",
+        s"&#10007; Not quite. Expected: <strong>${escHtml(expected)}</strong>")
     }
   }
 
   def showFeedback(el: html.Element, cls: String, msg: String): Unit = {
-    el.className   = s"feedback $cls"
-    el.innerHTML   = msg
+    el.className     = s"feedback $cls"
+    el.innerHTML     = msg
     el.style.display = "block"
   }
 
   def escHtml(s: String): String =
-    s.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+    s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
-  def normalise(s: String): String =
-    s.trim.toLowerCase
-      .replaceAll("\\s+", "")
-      .replace("{","").replace("}","")
-      .split("\\+").map(_.trim).sorted.mkString("+")
+  // Normalise two plain-text answers for lenient comparison.
+  // Handles: case, whitespace, and additive term ordering (a+d == d+a).
+  def normalise(s: String): String = {
+    val lower = s.toLowerCase.trim
+    val noSpace = lower.split("\\s+").mkString("")
+    // Sort additive terms so "a + d + e" == "e + d + a"
+    noSpace.split("\\+").map(_.trim).filter(_.nonEmpty).sorted.mkString("+")
+  }
 }
