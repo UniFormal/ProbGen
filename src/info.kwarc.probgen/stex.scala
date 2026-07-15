@@ -84,11 +84,11 @@ case class SProblem(intro: STeXSyntax, subproblems: List[SSubproblem]) extends S
     s"""<div class="problem-block"><div class="problem-intro">${intro.toHTML}</div>${subproblems.map(_.toHTML).mkString("")}</div>"""
 }
 
-case class SSubproblem(pts: Int, question: SText, solution: SSolution) extends SEnvironment("subproblem", 1) {
+case class SSubproblem(pts: Int, question: SText, solution: SSolution, subId: String = "") extends SEnvironment("subproblem", 1) {
   override def params = SParams("pts" -> pts.toString)
   def body = List(question, solution)
   override def toHTML: String = {
-    val id = this.hashCode.abs.toString
+    val id = if (subId.nonEmpty) subId else this.hashCode.abs.toString
     s"""<div class="subproblem">
       <div class="subproblem-question"><b>[$pts pts]</b> ${question.toHTML}</div>
       <div class="answer-row">
@@ -210,7 +210,18 @@ case class SSnippet(body: Seq[STeXSyntax], sep: String = "") extends SText {
           mathBuf.append(MathHTML(t.drop(1).dropRight(1)))
         } else {
           flushMath()
-          sb.append(p.toHTML)
+          val html = p.toHTML
+          // Add a space when a non-empty text follows non-empty previous content
+          // and neither side already has a boundary space
+          if (html.nonEmpty && sb.nonEmpty) {
+            val lastChar  = sb.last
+            val firstChar = html.head
+            val needSpace = lastChar != ' ' && firstChar != ' ' &&
+              firstChar != '.' && firstChar != ',' && firstChar != ')' &&
+              firstChar != ']' && firstChar != '!' && lastChar != '('
+            if (needSpace) sb.append(" ")
+          }
+          sb.append(html)
         }
       case other =>
         flushMath()
@@ -242,8 +253,21 @@ case class SPlainText(body: String) extends SText {
           mb.clear()
         }
       parts.zipWithIndex.foreach { case (part, i) =>
-        if (i % 2 == 0) { if (part.nonEmpty) { flushM(); sb.append(plainToHTML(part)) } }
-        else             { mb.append(MathHTML(part)) }
+        if (i % 2 == 0) {
+          if (part.nonEmpty) {
+            flushM()
+            // Add a space before plain text that follows a math span,
+            // unless the text already starts with a space or punctuation
+            val needsSpace = sb.nonEmpty && !part.startsWith(" ") &&
+              !part.startsWith(".") && !part.startsWith(",") &&
+              !part.startsWith(")") && !part.startsWith("]") &&
+              !part.startsWith("!")
+            if (needsSpace) sb.append(" ")
+            sb.append(plainToHTML(part))
+          }
+        } else {
+          mb.append(MathHTML(part))
+        }
       }
       flushM()
       sb.toString()

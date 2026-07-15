@@ -3,52 +3,59 @@ package info.kwarc.probgen
 import SText._
 import Expr._
 
-/** a concrete representation of a deterministic fully observable search problem that can be randomly generated
-  * @param numStates states are {0,...,numStates}
-  * @param actions set of actions
-  * @param successor a term in variables "s" and "a" that gives the successor state
-  * @param init the initial state
-  * @param goalForm a formula in variable "s" that expresses if s is a goal
-  */
-case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: List[Int], successor: Term, init: Int, goalForm: Form)
-  extends SearchProblem[Int,Int] with Problem[ExpressionBasedDeterminisiticSearchProblem] {
-  val states = Range(0,numStates).toList
-  val initial = List(init)
+case class ExpressionBasedDeterminisiticSearchProblem(
+                                                       numStates: Int, actions: List[Int], successor: Term, init: Int, goalForm: Form
+                                                     ) extends SearchProblem[Int,Int] with Problem[ExpressionBasedDeterminisiticSearchProblem] {
 
+  val states  = Range(0, numStates).toList
+  val initial = List(init)
   var presentArithmetically = true
 
-  /** computes the successor state by evaluating successor using the values s and a
-    * Actions are only applicable if the transition results in a legal state.
-    */
-  def trans(s: Int,a: Int) = {
+  // ScalaJS requires explicit override of lazy val from trait
+  override lazy val solutions = solve(searchDepth)
+
+  def trans(s: Int, a: Int) = {
     val t = Evaluator(successor)(using Context("s" -> s)("a" -> a)).asInt
-    if (states contains t) List(t) else Nil
+    if (states.contains(t)) List(t) else Nil
   }
 
-  /** checks if a state is a goal state by evaluating goalFrom using the value s */
-  def goal(s: Int) = {
-    Evaluator(goalForm)(using Context("s" -> s))
+  def goal(s: Int) = Evaluator(goalForm)(using Context("s" -> s))
+
+  private def stateName(s: Int): Term  = if (presentArithmetically) DInt(s) else NameLit(s)
+  private def actionName(a: Int): Term = if (presentArithmetically) DInt(a)
+  else NameLit(26 - actions.length + actions.indexOf(a))
+  def namedSolutions = solutions.map(_.rename(stateName, actionName))
+
+  // Parse a user-typed action token into an Int action value.
+  // In arithmetic mode actions are integers; in named mode they are letters (a, b, c...).
+  private def parseAction(token: String): Option[Int] = {
+    val t = token.trim
+    if (t.matches("-?\\d+")) {
+      // Integer token — check it's in our action list
+      val v = t.toInt
+      if (actions.contains(v)) Some(v) else None
+    } else if (t.length == 1 && t.charAt(0) >= 'a' && t.charAt(0) <= 'z') {
+      // Letter token — map a->actions(0), b->actions(1), etc.
+      val idx = t.charAt(0) - 'a'
+      if (idx >= 0 && idx < actions.length) Some(actions(idx)) else None
+    } else None
   }
 
-  private def stateName(s: Int): Term = if (presentArithmetically) DInt(s) else NameLit(s)
-  private def actionName(a: Int): Term = if (presentArithmetically) DInt(a) else NameLit(26-actions.length+actions.indexOf(a))
-  def namedSolutions = solutions.map(_.rename(stateName,actionName))
-
-  /** renders the intro text of the problem */
-  def intro() = {
-    // build match expressions first using the Expr API, see in particular
-    // - the apply methods for expressions like "U"("x") or Plus(a,b)
-    // - the methods for building infix expressions such as a === b or a+b
-    // - the unary operator ! to convert any Scala object into the corresponding expression
-    // use ~ to insert an Expr into latex, strings are automatically converted to variable references
-    // use x"..." to generate non-math latex syntax (Scala string interpolation)
-    // - use $variable or ${expression} to insert other objects
-    // - use §x§ for individual identifiers or symbols (but not complex expressions) that should appear as $x$
-    val (tr,ins,go) = if (presentArithmetically) {
-      (~("T"("s","a") === FinSet(successor)) + x"(where all operations are taken modulo $numStates)",
-       ~ FinSet(initial),
-       ~ goalForm
+  private def parseCommaSeparatedList(input: String): List[Int] = {
+    val tokens = input.split("[,\\s]+").map(_.trim).filter(_.nonEmpty).toList
+    if (tokens.isEmpty) throw new RuntimeException("Input is empty.")
+    tokens.map { t =>
+      parseAction(t).getOrElse(
+        throw new RuntimeException(s"'$t' is not a valid action for this problem.")
       )
+    }
+  }
+
+  def intro() = {
+    val (tr, ins, go) = if (presentArithmetically) {
+      (~("T"("s","a") === FinSet(successor)) + x"(where all operations are taken modulo $numStates)",
+        ~FinSet(initial),
+        ~goalForm)
     } else {(
       x"as given by the table below (where empty cells indicate inapplicable actions)",
       x"the states marked by §\to§ below",
@@ -65,16 +72,16 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
       )
     )
     val part2 = if (presentArithmetically) null else {
-      val rowHeads = states.map {s =>
+      val rowHeads = states.map { s =>
         val sN = stateName(s)
         if (initial.contains(s)) x"§\to§ $sN"
         else if (goal(s)) x"$sN §!§ "
         else x"$sN"
       }
-      val cells = states.zipWithIndex.flatMap {case (s,i) =>
-        actions.zipWithIndex.map {case (a,j) =>
+      val cells = states.zipWithIndex.flatMap { case (s,i) =>
+        actions.zipWithIndex.map { case (a,j) =>
           val t = trans(s,a).headOption.map(s => ~stateName(s)).getOrElse(SText(" "))
-          (i,j,t)
+          (i, j, t)
         }
       }
       val colHeads = actions.map(a => ~actionName(a))
@@ -83,93 +90,80 @@ case class ExpressionBasedDeterminisiticSearchProblem(numStates: Int, actions: L
     part1 + part2
   }
 
-  // ***** subproblems ******
+  // ── Subproblems ────────────────────────────────────────────────────────
 
-  /** a subproblem with a question and solution */
-  object whyPO extends Subproblem("apply",1,2) {
-    def question() = {
-      x"This search problem is fully observable. How can we tell?"
-    }
-    def solution() = {
-      x"The set of initial states has size §1§."
-    }
+  object whyPO extends Subproblem("apply", 1, 2) {
+    def question() = x"This search problem is fully observable. How can we tell?"
+    def solution() = x"The set of initial states has size §1§."
   }
 
-  object whyDet extends Subproblem("apply",1,2) {
-    def question() = {
-      x"This search problem is determinisitic. How can we tell?"
-    }
-    def solution() = {
-      x"The transition model always returns a set containing at most one element."
-    }
+  object whyDet extends Subproblem("apply", 1, 2) {
+    def question() = x"This search problem is determinisitic. How can we tell?"
+    def solution() = x"The transition model always returns a set containing at most one element."
   }
 
-  /** a constraint to indicate that exactly one out of the above subproblems should be chosen */
-  GroupConstraint(1,1,whyDet,whyPO)
+  GroupConstraint(1, 1, whyDet, whyPO)
 
-  object actionNotApplicable extends Subproblem("apply",1,2) {
+  object actionNotApplicable extends Subproblem("apply", 1, 2) {
     override def applicable() = presentArithmetically && inapplicableActions.nonEmpty
-    def question() = {
-      x"Give an example of a state §s§ and an action §a§ such that §a§ is not applicable in §s§."
-    }
-    def solution() = {
-      x"The correct answers §(s,a)§ are ${inapplicableActions.map(sa => (stateName(sa._1),actionName(sa._2)))}"
-    }
+    def question() = x"Give an example of a state §s§ and an action §a§ such that §a§ is not applicable in §s§."
+    def solution() = x"The correct answers §(s,a)§ are ${inapplicableActions.map(sa => (stateName(sa._1), actionName(sa._2)))}"
   }
 
-  object allActionsApplicable extends Subproblem("apply",1,2) {
+  object allActionsApplicable extends Subproblem("apply", 1, 2) {
     override def applicable() = inapplicableActions.isEmpty
-    def question() = {
-      x"In this search problem, every action is applicable in every state. How can we tell?"
-    }
-    def solution() = {
-      x"The transition model never returns the empty set."
-    }
+    def question() = x"In this search problem, every action is applicable in every state. How can we tell?"
+    def solution() = x"The transition model never returns the empty set."
   }
 
-  object applyAction extends Subproblem("apply",3,5) {
+  object applyAction extends Subproblem("apply", 3, 5) {
     var actionSeq: List[Int] = null
-    var result: List[Int] = Nil
-
+    var result: List[Int]    = Nil
     override def init() = {
       while (result.isEmpty) {
-        actionSeq = Generator.chooseSome(actions,2,3,true)
-        result = apply(initial,actionSeq)
+        actionSeq = Generator.chooseSome(actions, 2, 3, true)
+        result    = apply(initial, actionSeq)
       }
     }
-
-    def question() = {
-      x"Give the state(s) that can be reached by applying the action sequence ${FinSeq(actionSeq.map(actionName)*)} in an initial state."
-    }
-
-    def solution() = {
-      x"The possible states are ${FinSeq(result.map(stateName)*)}."
-    }
+    def question() = x"Give the state(s) that can be reached by applying the action sequence ${FinSeq(actionSeq.map(actionName)*)} in an initial state."
+    def solution() = x"The possible states are ${FinSeq(result.map(stateName)*)}."
   }
 
-  GroupConstraint(1,2, allActionsApplicable, actionNotApplicable, applyAction)
+  GroupConstraint(1, 2, allActionsApplicable, actionNotApplicable, applyAction)
 
-  object giveSolution extends Subproblem("apply",2,5) {
+  // giveSolution: uses the professor's checkSolution logic
+  object giveSolution extends Subproblem("apply", 2, 5) {
     override def applicable() = solutions.head.length <= 6
-    def question() = {
-      x"Give a solution."
-    }
-    def solution() = {
-      x"The solutions include ${SItemize(namedSolutions.take(5).map(p => ~ p.toExpr)*)}."
+
+    def question() = x"Give a solution."
+    def solution() = x"The solutions include ${SItemize(namedSolutions.take(5).map(p => ~p.toExpr)*)}."
+
+    // Override with domain-specific checking:
+    // parse the input as a comma-separated action sequence and verify it reaches a goal.
+    override def checkSolution(input: String): CheckResult = {
+      val as = try { parseCommaSeparatedList(input) }
+      catch { case e: RuntimeException =>
+        return Incorrect("A solution is a comma-separated list of actions. " + e.getMessage)
+      }
+      if (as.isEmpty)
+        return Incorrect("A solution is a comma-separated list of actions.")
+      val resultingStates = apply(initial, as)
+      if (resultingStates.isEmpty)
+        return Incorrect("This action sequence is not applicable in the initial state.")
+      if (resultingStates.exists(s => goal(s))) Correct()
+      else Incorrect("That action sequence does not reach a goal state.")
     }
   }
 
-  object giveAllSolutions extends Subproblem("apply",3,5) {
+  object giveAllSolutions extends Subproblem("apply", 3, 5) {
     override def applicable() = solutions.length <= 3
     def question() = {
-      val n = solutions.length
+      val n      = solutions.length
       val plural = if (n > 1) "s" else ""
       x"Give all $n solution$plural whose length is at most $searchDepth."
     }
-    def solution() = {
-      x"The solution(s) is/are ${SItemize(namedSolutions.map(p => ~p.toExpr)*)}."
-    }
+    def solution() = x"The solution(s) is/are ${SItemize(namedSolutions.map(p => ~p.toExpr)*)}."
   }
 
-  GroupConstraint(1,1,giveSolution,giveAllSolutions)
+  GroupConstraint(1, 1, giveSolution, giveAllSolutions)
 }
