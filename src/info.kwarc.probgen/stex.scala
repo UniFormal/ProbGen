@@ -239,7 +239,25 @@ case class SSnippet(body: Seq[STeXSyntax], sep: String = "") extends SText {
 // ---------------------------------------------------------------------------
 case class SPlainText(body: String) extends SText {
   override def toString = body
-  override def toText: String = body.replace("$", "")
+  override def toText: String = {
+    // Remove LaTeX math environment markers
+    val s = body
+      .replace("\\[", "").replace("\\]", "")
+      .replace("\\(", "").replace("\\)", "")
+      .replace("$", "")
+      // Map LaTeX commands to readable text equivalents
+      .replace("\\times", "x")
+      .replace("\\cdot", "*")
+      .replace("\\hline", "")
+      .replace("\\to", "->")
+      .replace("\\gamma", "γ")
+      .replace("\\pi", "π")
+      .replace("\\leq", "<=")
+      .replace("\\geq", ">=")
+      .replace("\\neq", "!=")
+      .replace("\\in", "in")
+    s.trim
+  }
   override def toHTML: String = {
     val parts = body.split("\\$", -1)
     if (parts.length == 1) {
@@ -276,15 +294,26 @@ case class SPlainText(body: String) extends SText {
 
   private def plainToHTML(s: String): String = {
     val t = s.trim
+    // If the whole segment is a single LaTeX command, render as inline math
+    if (t.startsWith("\\")) {
+      val mathHtml = MathHTML.token(t)
+      if (mathHtml != t) return s"""<span class="math">$mathHtml</span>"""
+    }
     t match {
       case cmd if cmd.startsWith("\\mathtt{") && cmd.endsWith("}") =>
         s"""<span class="math"><span class="mathtt">${cmd.stripPrefix("\\mathtt{").stripSuffix("}")}</span></span>"""
       case cmd if cmd.startsWith("\\mathrm{") && cmd.endsWith("}") =>
         s"""<span class="math">${cmd.stripPrefix("\\mathrm{").stripSuffix("}")}</span>"""
-      case "\\to"    => """<span class="math"><span class="sym">→</span></span>"""
-      case "\\gamma" => """<span class="math"><i>γ</i></span>"""
-      case "\\pi"    => """<span class="math"><i>π</i></span>"""
-      case _         => s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+      case _ =>
+        // Check if the trimmed text contains only LaTeX tokens (all words start with \)
+        // e.g. " 	imes " — render entirely as math
+        val words = t.split("\\s+").filter(_.nonEmpty)
+        if (words.nonEmpty && words.forall(w => w.startsWith("\\") || w.matches("-?\\d+(\\.\\d+)?"))) {
+          val mathContent = words.map(w => MathHTML.token(w)).mkString(" ")
+          s"""<span class="math">$mathContent</span>"""
+        } else {
+          s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        }
     }
   }
 }

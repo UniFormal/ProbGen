@@ -142,29 +142,39 @@ case class Var(name: String) extends Term {
 
 case class Lit(value: Any, domain: Domain) extends Term {
   def toSTeX = value.toString
-  def toHTML = domain match {
-    case DString =>
-      val v = value.toString
-      v match {
-        case s if s.startsWith("\\mathtt{") && s.endsWith("}") =>
-          s"<span class='mathtt'>${s.stripPrefix("\\mathtt{").stripSuffix("}")}</span>"
-        case "\\to"    => "→"
-        case "\\gamma" => "<i>γ</i>"
-        case s         => s"<i>$s</i>"
+  def toHTML: String = value match {
+    // Handle double-wrapped case: Lit(Lit("b",DString), DString)
+    case inner: Lit => inner.toHTML
+    case _ =>
+      domain match {
+        case DString =>
+          val v = value.toString
+          v match {
+            case s if s.startsWith("\\mathtt{") && s.endsWith("}") =>
+              s"<span class='mathtt'>${s.stripPrefix("\\mathtt{").stripSuffix("}")}</span>"
+            case "\\to"    => "→"
+            case "\\gamma" => "<i>γ</i>"
+            case s           => s"<i>$s</i>"
+          }
+        case _ => s"<span class='num'>${value.toString}</span>"
       }
-    case _ => s"<span class='num'>${value.toString}</span>"
   }
-  def toText = domain match {
-    case DString =>
-      val v = value.toString
-      v match {
-        case s if s.startsWith("\\mathtt{") && s.endsWith("}") =>
-          s.stripPrefix("\\mathtt{").stripSuffix("}")
-        case "\\to"    => "→"
-        case "\\gamma" => "γ"
-        case s         => s
+  def toText: String = value match {
+    // Handle double-wrapped case: Lit(Lit("b",DString), DString)
+    case inner: Lit => inner.toText
+    case _ =>
+      domain match {
+        case DString =>
+          val v = value.toString
+          v match {
+            case s if s.startsWith("\\mathtt{") && s.endsWith("}") =>
+              s.stripPrefix("\\mathtt{").stripSuffix("}")
+            case "\\to"    => "→"
+            case "\\gamma" => "γ"
+            case s           => s
+          }
+        case _ => value.toString
       }
-    case _ => value.toString
   }
   def asInt = if (domain == DInt) value.asInstanceOf[Int]
   else throw EvalError("value not an integer: " + this)
