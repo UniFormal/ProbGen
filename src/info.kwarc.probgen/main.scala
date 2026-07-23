@@ -1,7 +1,14 @@
 package info.kwarc.probgen
 
-/** simple main method to call generators and see their results */
-object Test {
+import org.scalajs.dom
+import org.scalajs.dom.document
+import org.scalajs.dom.html
+import scala.scalajs.js.annotation.JSExportTopLevel
+
+object main {
+
+  private val subproblemMap = scala.collection.mutable.Map[String, Problem[?]#Subproblem]()
+
   def main(args: Array[String]): Unit = {
     val p = CSPGenerator.make()
     //val p = SearchProblemGenerator.make()
@@ -16,4 +23,13 @@ object Test {
       println(stex)
     }
   }
+
+  def showFeedback(el: html.Element, cls: String, msg: String): Unit = {
+    el.className     = s"feedback $cls"
+    el.innerHTML     = msg
+    el.style.display = "block"
+  }
+
+  def escHtml(s: String): String =
+    s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 }
