@@ -5,7 +5,7 @@ import org.scalajs.dom.document
 import org.scalajs.dom.html
 import scala.scalajs.js.annotation.JSExportTopLevel
 
-object Main {
+object main {
 
   private val subproblemMap = scala.collection.mutable.Map[String, Problem[?]#Subproblem]()
 
