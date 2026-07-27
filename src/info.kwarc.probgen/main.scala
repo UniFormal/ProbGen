@@ -23,7 +23,7 @@ object main {
     container.innerHTML = "<p class='loading'>Generating problems…</p>"
 
     // use setTimeout so it already renders "Generating problems..." 
-    setTimeout(1) {
+    setTimeout(20) {
         try {
           val sb = new StringBuilder
           sb ++= renderProblem("Probability Problem", BasicProbabilityProblemGenerator.make())
