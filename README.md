@@ -1,5 +1,23 @@
 # Codebase Guide
 
+## Setup
+
+Test the project by opening the `index.html` in a browser. For that to actually do something you first have to build everything using
+```
+sbt fastLinkJS
+``` 
+
+It will likely fail at first, because of a missing plugin. To fix that create a file at `project/plugins.sbt` and add the following line
+```
+addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.19.0")
+```
+
+My SBT Version (sbt --version) is 1.10.10.
+
+This is how I (Sungonogi) got everything to run, but there might be extra steps for things I already had installed.
+In that case let me know / add to this README.
+
+
 ## Scala
 
 Before looking at the code, here are the 5 core Scala concepts you need to know:
