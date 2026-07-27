@@ -4,6 +4,8 @@ import org.scalajs.dom
 import org.scalajs.dom.document
 import org.scalajs.dom.html
 import scala.scalajs.js.annotation.JSExportTopLevel
+import scala.scalajs.js.timers.setTimeout
+
 
 object main {
 
@@ -19,18 +21,22 @@ object main {
     subproblemMap.clear()
     val container = document.getElementById("container").asInstanceOf[html.Element]
     container.innerHTML = "<p class='loading'>Generating problems…</p>"
-    try {
-      val sb = new StringBuilder
-      sb ++= renderProblem("MDP Problem",         MDPGenerator.make())
-      sb ++= renderProblem("Probability Problem", BasicProbabilityProblemGenerator.make())
-      sb ++= renderProblem("Search Problem",      SearchProblemGenerator.make())
-      container.innerHTML = sb.toString()
-    } catch {
-      case e: Throwable =>
-        container.innerHTML =
-          s"<pre style='color:red;padding:20px'>ERROR: ${e.getMessage}\n${e.getClass.getName}</pre>"
-        e.printStackTrace()
-    }
+
+    // use setTimeout so it already renders "Generating problems..." 
+    setTimeout(1) {
+        try {
+          val sb = new StringBuilder
+          sb ++= renderProblem("Probability Problem", BasicProbabilityProblemGenerator.make())
+          sb ++= renderProblem("MDP Problem",         MDPGenerator.make())
+          sb ++= renderProblem("Search Problem",      SearchProblemGenerator.make())
+          container.innerHTML = sb.toString()
+        } catch {
+          case e: Throwable =>
+            container.innerHTML =
+              s"<pre style='color:red;padding:20px'>ERROR: ${e.getMessage}\n${e.getClass.getName}</pre>"
+            e.printStackTrace()
+        }
+      }
   }
 
   def renderProblem(title: String, gen: Problem[?]): String = {
@@ -63,6 +69,7 @@ object main {
 
     if (userAns.isEmpty) {
       showFeedback(fbEl, "error", "Please enter an answer first.")
+      showFlash(fbEl)
       return
     }
 
@@ -83,6 +90,16 @@ object main {
               s"&#10007; Not quite. Expected: <strong>${escHtml(expected)}</strong>")
         }
     }
+
+    // show animation so it is clear that the input was checked again
+    showFlash(fbEl)
+  }
+
+  def showFlash(el: html.Element): Unit = {
+    val flashClass = "flash"
+    el.classList.remove(flashClass)
+    dom.window.setTimeout(() => el.classList.add(flashClass), 0)
+    dom.window.setTimeout(() => el.classList.remove(flashClass), 250)
   }
 
   def showFeedback(el: html.Element, cls: String, msg: String): Unit = {
