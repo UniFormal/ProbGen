@@ -35,7 +35,9 @@ case class BasicProbabilityProblem(setting: BasicProbability) extends Problem[Ba
     // (p, q, (sum of p terms) / (sum of q terms))
     var result: (Int,Int,Expr) = (0,0,null)
     override def init() = {
-      while (result._1 == 0 || result._1 > 4 || result._2 < 2 || result._2 > 6 || result._1 == result._2) {
+      // result._1 = possibleEvents, result._2 = trueEvents
+      // Ensure 2 <= possibleEvents <= 6 and 1 <= trueEvents <= 4 and trueEvents != possibleEvents
+      while (result._1 < 2 || result._1 > 6 || result._2 < 1 || result._2 > 4 || result._2 == result._1) {
         form = Generator.genForm(State(setting.varNames,maxDepth = 2))
         cond = Generator.genForm(State(setting.varNames,maxDepth = 1))
         result = setting.condProb(form,cond)
