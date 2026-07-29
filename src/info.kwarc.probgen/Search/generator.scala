@@ -14,9 +14,10 @@ object SearchProblemGenerator extends ProblemGenerator[ExpressionBasedDeterminis
   def getTransitionModulo = Generator.chooseBoolean(0.5)
   def getPresentArithmetically = Generator.chooseBoolean(0.5)
 
+  // TODO: refactor to take < 2seconds, also adjust other TODOs
   def make(): ExpressionBasedDeterminisiticSearchProblem = {
     // lower/upper bound for number of states
-    val numStates = Generator.chooseInt(minStates,maxStates+1)
+    val numStates = Generator.chooseInt(minStates,maxStates+1) // TODO: actually only generate maxStates
     val stateList = Range(0,numStates).toList
     val states = FinSet(stateList.map(DInt(_))*)
     log("choosing states: " + states)
@@ -42,8 +43,8 @@ object SearchProblemGenerator extends ProblemGenerator[ExpressionBasedDeterminis
       log("  " + goal + " --- " + "satisfied by " + goalStates.mkString(","))
       if (numGoalStates == 0) {
         log("    no goal states --- dismiss")
-      } else if (numGoalStates.toDouble/numStates > 0.2) {
-        log("    too many goal states --- dismiss")
+      } else if (numGoalStates.toDouble/numStates > 0.2) { // TODO: currently this enforces exactly one goal state as maxStates < 10
+        log("    too many goal states --- dismiss") // so maybe remove this and instead randomly pick one goal state at the start
       } else if (goalStates.contains(initial)) {
         log("    initial is goal --- dismiss")
       } else {
