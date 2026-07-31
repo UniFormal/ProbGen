@@ -22,21 +22,20 @@ object main {
     val container = document.getElementById("container").asInstanceOf[html.Element]
     container.innerHTML = "<p class='loading'>Generating problems…</p>"
 
-    // use setTimeout so it already renders "Generating problems..." 
-    setTimeout(20) {
+    // use requestAnimationFrame and setTimeout so it actually renders "Generating problems..." 
+    dom.window.requestAnimationFrame { _ =>
+      dom.window.setTimeout(() => {
         try {
           val sb = new StringBuilder
-          sb ++= renderProblem("Probability Problem", BasicProbabilityProblemGenerator.make())
-          sb ++= renderProblem("MDP Problem",         MDPGenerator.make())
           sb ++= renderProblem("Search Problem",      SearchProblemGenerator.make())
           container.innerHTML = sb.toString()
         } catch {
           case e: Throwable =>
-            container.innerHTML =
-              s"<pre style='color:red;padding:20px'>ERROR: ${e.getMessage}\n${e.getClass.getName}</pre>"
+            container.innerHTML = s"<pre style='color:red;padding:20px'>ERROR: ${e.getMessage}\n${e.getClass.getName}</pre>"
             e.printStackTrace()
         }
-      }
+      }, 0)
+    }
   }
 
   def renderProblem(title: String, gen: Problem[?]): String = {

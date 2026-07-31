@@ -1,74 +1,75 @@
 package info.kwarc.probgen
 
 /** randomly generates a search problem according to some criteria */
-object SearchProblemGenerator extends ProblemGenerator[ExpressionBasedDeterminisiticSearchProblem] {
+object SearchProblemGenerator extends ProblemGenerator[ExpressionBasedDeterministicSearchProblem] {
 
-  // modify these to guide selection
-  val minStates = 5
-  val maxStates = 8
+  /** modify these to guide selection
+   * be very careful to avoid impossible situations
+   * f.e. minStates=4 and minSolutionLength=4 is impossible
+   * f.e. minStates=6 and minActions=4 and minSolutionLength=4 is almost impossible
+  **/
+
+  // params for random generation
+  val minStates = 7
+  val maxStates = 10
   val minActions = 3
   val maxActions = 4
-  val minSolutionLength = 4
-  val maxSolutions = Some(4)
-  val minActionsInSolution = 2
-  def getTransitionModulo = Generator.chooseBoolean(0.5)
-  def getPresentArithmetically = Generator.chooseBoolean(0.5)
+  val transitionModuloChance = 0.5
 
-  // TODO: refactor to take < 2seconds, also adjust other TODOs
-  def make(): ExpressionBasedDeterminisiticSearchProblem = {
-    // lower/upper bound for number of states
-    val numStates = Generator.chooseInt(minStates,maxStates+1) // TODO: actually only generate maxStates
+  // params for solution criteria
+  val minSolutionLength = 3
+  val minActionsInSolution = 2
+  val maxSearchDepth = 6
+  val maxAmountSolutions = 4
+
+  def make(): ExpressionBasedDeterministicSearchProblem = {
+
+    // random choices based on params above
+    val numStates = Generator.chooseInt(minStates, maxStates)
+    val numActions = Generator.chooseInt(minActions, maxActions)
+    val transitionModulo = Generator.chooseBoolean(transitionModuloChance)
+
     val stateList = Range(0,numStates).toList
-    val states = FinSet(stateList.map(DInt(_))*)
-    log("choosing states: " + states)
-    // lower/upper bound for number of actions; actions are numbers similar in size to the states
-    val actionList = Generator.chooseSome(stateList, minActions, maxActions, false).sorted
-    val actions = FinSet(actionList.map(DInt(_))*)
-    log("choosing actions: " + actions)
-    // the initial state is some state
-    val initial = if (Generator.chooseBoolean(0.5)) 0 else numStates-1
-    log("choosing initial state: " + initial)
-    // repeat picking goal conditions until a good one is found
-    var goal: Form = null
-    var good = false
-    log("choosing goal condition")
-    while (!good) {
-      // goal conditions are of the form p(s,i) where p is some predicate and i is a number
-      val goalPred = Generator.choose(List(Less,LessEq,Divides,Equals))
-      val goalArg = Generator.choose(Range(0,numStates).toList)
-      goal = goalPred(Var("s"), DInt(goalArg))
-      // compute the set of goal states and check if we like it
-      val goalStates = Range(0,numStates).filter(s => Evaluator(goal)(using Context("s" -> s)))
-      val numGoalStates = goalStates.length
-      log("  " + goal + " --- " + "satisfied by " + goalStates.mkString(","))
-      if (numGoalStates == 0) {
-        log("    no goal states --- dismiss")
-      } else if (numGoalStates.toDouble/numStates > 0.2) { // TODO: currently this enforces exactly one goal state as maxStates < 10
-        log("    too many goal states --- dismiss") // so maybe remove this and instead randomly pick one goal state at the start
-      } else if (goalStates.contains(initial)) {
-        log("    initial is goal --- dismiss")
-      } else {
-        good = true
-        if (numGoalStates == 1) {
-          // if there is only one goal state, use the equality as the predicate
-          goal = Equals(Var("s"), DInt(goalStates.head))
-        }
-      }
-    }
+    log(" " + numStates + " " + numActions + " " + transitionModulo)
+
     // loop until a good transition function is found
-    log("choosing transition operation")
-    var transitionModulo = true
-    var searchProb: ExpressionBasedDeterminisiticSearchProblem = null
-    good = false
-    var tries = 0 // count attempts and abort if we can't find anything good
-    while (!good && tries < 100) {
-      transitionModulo = getTransitionModulo
-      tries += 1
-      // the transition function is of the form (s op a [op' i]) modulo number of states
-      // where op, op' are random operators and i is a number
-      val op1 = Generator.choose(List(Plus,Minus,Times,Exp))
+
+    var searchProb: ExpressionBasedDeterministicSearchProblem = null
+    var good: Boolean = false
+    while (!good) {
+
+      val trans = genTransition(numStates, transitionModulo)
+
+      // pick initial and goal state (currently only one goal state)
+      val initialAndGoalStates = Generator.chooseSome(stateList, 2, 2, false)
+      val initial = initialAndGoalStates(0)
+      val goal = initialAndGoalStates(1)
+      val goalForm: Form = Equals(Var("s"), DInt(goal))
+
+      // actions are numbers similar in size to the states
+      var possibleActions = stateList
+      if(containsExp(trans)){ // avoid 0^0
+        possibleActions = possibleActions.filter(_ != 0)
+      }
+      val actionList = Generator.chooseSome(possibleActions, numActions, numActions, false).sorted
+      val actions = FinSet(actionList.map(DInt(_))*)
+
+      searchProb = ExpressionBasedDeterministicSearchProblem(numStates,actionList,trans,initial,goalForm, maxSearchDepth, transitionModulo)
+
+      // solve the resulting search problem and check if we like the solutions
+      good = solutionsValid(searchProb.solutions)
+    }
+
+    log("chosen problem: " + searchProb)
+    searchProb
+  }
+
+  // the transition function is of the form (s op a [op' i]) modulo number of states
+  // where op, op' are random operators and i is a number
+  def genTransition(numStates: Int, transitionModulo: Boolean): Term = {
+      val op1 = Generator.choose(List(Exp))
       val term1 = op1(Var("s"), Var("a"))
-      val lit = Generator.choose(stateList)
+      val lit = Generator.chooseInt(0, numStates)
       val term2 = if (lit == 0) {
         term1
       } else {
@@ -76,35 +77,29 @@ object SearchProblemGenerator extends ProblemGenerator[ExpressionBasedDeterminis
         op2(term1, DInt(lit))
       }
       val trans = if (transitionModulo) Mod(term2,DInt(numStates)) else term2
-      log("  " + trans)
-      searchProb = ExpressionBasedDeterminisiticSearchProblem(numStates,actionList,trans,initial,goal)
-      // solve the resulting search problem and check if we like the solutions
-      val solutions = searchProb.solutions
-      if (solutions.isEmpty) {
-        log("  no solutions --- dismiss")
-      } else {
-        val sol = solutions.head
-        log("  shortest solutions: " + sol)
-        if (sol.length < minSolutionLength) {
-          log(s"    length under $minSolutionLength --- dismiss")
-        } else if (sol.actions.distinct.length < minActionsInSolution) {
-          log(s"    uses fewer than $minActionsInSolution actions --- dismiss")
-        } else if (maxSolutions.forall(m => solutions.length > m)) {
-          log(s"    more than $maxSolutions solutions --- dismiss")
-        } else {
-          log("  solutions: ")
-          solutions.take(5).foreach(s => log("  " + s))
-          good = true
-        }
-      }
-    }
-    if (!good) {
-      // fail-safe: start from scratch if we're stuck
-      log("no problem found, trying again")
-      return make()
-    }
-    searchProb.presentArithmetically = transitionModulo && getPresentArithmetically
-    log("chosen problem: " + searchProb)
-    searchProb
+
+      trans
   }
+
+  def solutionsValid(solutions: List[Path[Int, Int]]) : Boolean = {
+
+    if (solutions.isEmpty || solutions.length > maxAmountSolutions) {
+      return false
+    }
+
+    val sol = solutions.head
+    if (sol.length < minSolutionLength || sol.actions.distinct.length < minActionsInSolution) {
+      return false
+    }
+
+    return true
+  }
+
+  def containsExp(t: Term): Boolean = t match {
+    case Apply(op, args) =>
+      op == Exp || args.exists(containsExp)
+    case _ =>
+      false
+  }
+
 }

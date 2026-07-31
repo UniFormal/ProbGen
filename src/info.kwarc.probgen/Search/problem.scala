@@ -3,16 +3,15 @@ package info.kwarc.probgen
 import SText._
 import Expr._
 
-case class ExpressionBasedDeterminisiticSearchProblem(
-                                                       numStates: Int, actions: List[Int], successor: Term, init: Int, goalForm: Form
-                                                     ) extends SearchProblem[Int,Int] with Problem[ExpressionBasedDeterminisiticSearchProblem] {
+case class ExpressionBasedDeterministicSearchProblem(
+                                                       numStates: Int, actions: List[Int], successor: Term, init: Int, goalForm: Form, maxSearchDepth: Int, presentArithmetically: Boolean
+                                                     ) extends SearchProblem[Int,Int] with Problem[ExpressionBasedDeterministicSearchProblem] {
 
   val states  = Range(0, numStates).toList
   val initial = List(init)
-  var presentArithmetically = true
 
   // ScalaJS requires explicit override of lazy val from trait
-  override lazy val solutions = solve(searchDepth)
+  override lazy val solutions = solve(maxSearchDepth)
 
   def trans(s: Int, a: Int) = {
     val t = Evaluator(successor)(using Context("s" -> s)("a" -> a)).asInt
@@ -98,7 +97,7 @@ case class ExpressionBasedDeterminisiticSearchProblem(
   }
 
   object whyDet extends Subproblem("apply", 1, 2) {
-    def question() = x"This search problem is determinisitic. How can we tell?"
+    def question() = x"This search problem is deterministic. How can we tell?"
     def solution() = x"The transition model always returns a set containing at most one element."
   }
 
@@ -126,7 +125,7 @@ case class ExpressionBasedDeterminisiticSearchProblem(
       }
     }
     def question() = x"Give the state(s) that can be reached by applying the action sequence ${FinSeq(actionSeq.map(actionName)*)} in an initial state."
-    def solution() = x"The possible states are ${FinSeq(result.map(stateName)*)}."
+    def solution() = x"${FinSeq(result.map(stateName)*)}"
   }
 
   GroupConstraint(1, 2, allActionsApplicable, actionNotApplicable, applyAction)
@@ -160,7 +159,7 @@ case class ExpressionBasedDeterminisiticSearchProblem(
     def question() = {
       val n      = solutions.length
       val plural = if (n > 1) "s" else ""
-      x"Give all $n solution$plural whose length is at most $searchDepth."
+      x"Give all $n solution$plural whose length is at most $maxSearchDepth."
     }
     def solution() = x"The solution(s) is/are ${SItemize(namedSolutions.map(p => ~p.toExpr)*)}."
   }
