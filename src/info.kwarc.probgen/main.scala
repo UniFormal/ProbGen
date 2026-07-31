@@ -27,6 +27,8 @@ object main {
       dom.window.setTimeout(() => {
         try {
           val sb = new StringBuilder
+          sb ++= renderProblem("MDP Problem",         MDPGenerator.make())
+          sb ++= renderProblem("Probability Problem", BasicProbabilityProblemGenerator.make())
           sb ++= renderProblem("Search Problem",      SearchProblemGenerator.make())
           container.innerHTML = sb.toString()
         } catch {
