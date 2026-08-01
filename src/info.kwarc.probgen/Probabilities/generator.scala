@@ -18,7 +18,6 @@ object BasicProbabilityProblemGenerator extends ProblemGenerator[BasicProbabilit
 
   def make(): BasicProbabilityProblem = {
     val domainSizes = Generator.choose(domainSizeCombinations)
-    val numVars = domainSizes.length
     BasicProbabilityProblem(BasicProbability(domainSizes))
   }
 }
