@@ -1,21 +1,47 @@
 # Codebase Guide
 
-## Setup
+## Getting Started
 
-Test the project by opening the `index.html` in a browser. For that to actually do something you first have to build everything using
-```
-sbt fastLinkJS
-``` 
 
-It will likely fail at first, because of a missing plugin. To fix that create a file at `project/plugins.sbt` and add the following line
+You need to install scala as described on the official [website](https://www.scala-lang.org/download/).
+
+Afterwards running `sbt --version` should work (maybe you need to install java too).
+
+You also need the scalajs plugin, which you can add by adding a file `./project/plugins.sbt` with the line
+(if you don't have a `./project` folder, doing `sbt run` creates it)
+
 ```
 addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.19.0")
 ```
 
-My SBT Version (sbt --version) is 1.10.10.
+Also make sure you have the correct version of `sbt` specified. I did this by modifying `./project/build.properties` and setting 
+```
+sbt.version=1.10.10
+```
 
-This is how I (Sungonogi) got everything to run, but there might be extra steps for things I already had installed.
-In that case let me know / add to this README.
+To actually build the project run
+```
+sbt fastLinkJS
+``` 
+
+This will build the javascript code necessary. Now you can open `index.html` with your preferred browser and you can start playing around with the problems.
+
+This is how I (Sungonogi) got everything to run on my ubuntu 24 laptop, but some extra steps might be required for other environments so feel free to add information.
+
+
+## Creating your own problem
+
+To create your own problem you need to write 3 files `generator.scala`, `logic.scala`, `problem.scala` in a folder `scr/info.kwarc.probgen/YOUR_PROBLEM_NAME`. Here is a very short overview of how everything works:
+
+The `logic.scala` should describe an instance of your specific problem, f.e. if it is a probability problem then the variable names `X, Y, Z` and events `X=Y` are stored here. It also contains the logic to compute the correct answers, like f.e. in the search problem it does depth first search in order to find a solution (an action sequence leading to a goal state).
+
+The `generator.scala` should instantiate an instance of your specific problem. This is where randomness is used, specifically with the `Generator` which provides utility functions like `Generator.choose([1,2,3])` which randomly picks an element from the list.
+
+The `problem.scala` is what the user will see in the end. It contains the problem description, the questions and the expected answers. To show formulas etc. this project converts sTeX to HTML.
+
+After creating these files you can test everything by adding the problem in `main.scala`  in the function `generateAndRender` with
+```sb ++= renderProblem("Your Problem",      YourProblem.make())```
+and then test everything using your browser by opening the `index.html`
 
 
 ## Scala
