@@ -26,7 +26,9 @@ sbt fastLinkJS
 
 This will build the javascript code necessary. Now you can open `index.html` with your preferred browser and you can start playing around with the problems.
 
-This is how I (Sungonogi) got everything to run on my ubuntu 24 laptop, but some extra steps might be required for other environments so feel free to add information.
+For easy development I recommend the `Scala (Metals)` plugin for VSCode to allow f.e. Strg Click to work. 
+ 
+This is how I (Sungonogi) got everything to run on my ubuntu 24 laptop, but some extra steps might be required for other environments so feel free to add information like a recommended IntelliJ Plugin.
 
 
 ## Creating your own problem
