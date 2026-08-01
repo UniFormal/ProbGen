@@ -169,11 +169,10 @@ case class ExpressionBasedDeterministicSearchProblem(
   }
 
   object giveAllSolutions extends Subproblem("apply", 3, 5) {
-    override def applicable() = solutions.length <= 3
+    override def applicable() = 2 <= solutions.length && solutions.length <= 3
     def question() = {
       val n      = solutions.length
-      val plural = if (n > 1) "s" else ""
-      x"Give all $n solution$plural whose length is at most $maxSearchDepth."
+      x"Give all $n solutions whose length is at most $maxSearchDepth."
     }
     def solution() = x"The solution(s) is/are ${SItemize(namedSolutions.map(formatPath)*)}."
   }
