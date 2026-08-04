@@ -37,7 +37,7 @@ To create your own problem you need to write 3 files `generator.scala`, `logic.s
 
 The `logic.scala` should describe an instance of your specific problem, f.e. if it is a probability problem then the variable names `X, Y, Z` and events `X=Y` are stored here. It also contains the logic to compute the correct answers, like f.e. in the search problem it does depth first search in order to find a solution (an action sequence leading to a goal state).
 
-The `generator.scala` should instantiate an instance of your specific problem. This is where randomness is used, specifically with the `Generator` which provides utility functions like `Generator.choose([1,2,3])` which randomly picks an element from the list.
+The `generator.scala` should instantiate an instance of your specific problem. This is where randomness is used, specifically with the `Generator` which provides utility functions like `Generator.choose(List(1,2,3))` which randomly picks an element from the list.
 
 The `problem.scala` is what the user will see in the end. It contains the problem description, the questions and the expected answers. To show formulas etc. this project converts sTeX to HTML.
 
