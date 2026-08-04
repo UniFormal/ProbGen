@@ -3,16 +3,15 @@ package info.kwarc.probgen
 import SText._
 import Expr._
 
-case class ExpressionBasedDeterminisiticSearchProblem(
-                                                       numStates: Int, actions: List[Int], successor: Term, init: Int, goalForm: Form
-                                                     ) extends SearchProblem[Int,Int] with Problem[ExpressionBasedDeterminisiticSearchProblem] {
+case class ExpressionBasedDeterministicSearchProblem(
+                                                       numStates: Int, actions: List[Int], successor: Term, init: Int, goalForm: Form, maxSearchDepth: Int, presentArithmetically: Boolean
+                                                     ) extends SearchProblem[Int,Int] with Problem[ExpressionBasedDeterministicSearchProblem] {
 
   val states  = Range(0, numStates).toList
   val initial = List(init)
-  var presentArithmetically = true
 
   // ScalaJS requires explicit override of lazy val from trait
-  override lazy val solutions = solve(searchDepth)
+  override lazy val solutions = solve(maxSearchDepth)
 
   def trans(s: Int, a: Int) = {
     val t = Evaluator(successor)(using Context("s" -> s)("a" -> a)).asInt
@@ -26,6 +25,14 @@ case class ExpressionBasedDeterminisiticSearchProblem(
   else NameLit(26 - actions.length + actions.indexOf(a))
   def namedSolutions = solutions.map(_.rename(stateName, actionName))
 
+  private def formatPath(p: Path[Term, Term]) = {
+    val startState = x"${p.start}"
+    val formattedSteps = p.steps.map { case (action, nextState) => 
+      x" -$action-> $nextState" 
+    }
+    SText((startState :: formattedSteps)*)
+  }
+
   // Parse a user-typed action token into an Int action value.
   // In arithmetic mode actions are integers; in named mode they are letters (a, b, c...).
   private def parseAction(token: String): Option[Int] = {
@@ -35,12 +42,16 @@ case class ExpressionBasedDeterminisiticSearchProblem(
       val v = t.toInt
       if (actions.contains(v)) Some(v) else None
     } else if (t.length == 1 && t.charAt(0) >= 'a' && t.charAt(0) <= 'z') {
-      // Letter token — map a->actions(0), b->actions(1), etc.
-      val idx = t.charAt(0) - 'a'
-      if (idx >= 0 && idx < actions.length) Some(actions(idx)) else None
+      // Letter token — reverse the mapping from actionName
+      // actionName uses: charIdx = 26 - actions.length + listIdx
+      // Therefore:       listIdx = charIdx - 26 + actions.length
+      val charIdx = t.charAt(0) - 'a'
+      val listIdx = charIdx - 26 + actions.length
+      
+      if (listIdx >= 0 && listIdx < actions.length) Some(actions(listIdx)) else None
     } else None
   }
-
+  
   private def parseCommaSeparatedList(input: String): List[Int] = {
     val tokens = input.split("[,\\s]+").map(_.trim).filter(_.nonEmpty).toList
     if (tokens.isEmpty) throw new RuntimeException("Input is empty.")
@@ -98,7 +109,7 @@ case class ExpressionBasedDeterminisiticSearchProblem(
   }
 
   object whyDet extends Subproblem("apply", 1, 2) {
-    def question() = x"This search problem is determinisitic. How can we tell?"
+    def question() = x"This search problem is deterministic. How can we tell?"
     def solution() = x"The transition model always returns a set containing at most one element."
   }
 
@@ -126,7 +137,7 @@ case class ExpressionBasedDeterminisiticSearchProblem(
       }
     }
     def question() = x"Give the state(s) that can be reached by applying the action sequence ${FinSeq(actionSeq.map(actionName)*)} in an initial state."
-    def solution() = x"The possible states are ${FinSeq(result.map(stateName)*)}."
+    def solution() = x"${FinSeq(result.map(stateName)*)}"
   }
 
   GroupConstraint(1, 2, allActionsApplicable, actionNotApplicable, applyAction)
@@ -135,7 +146,9 @@ case class ExpressionBasedDeterminisiticSearchProblem(
   object giveSolution extends Subproblem("apply", 2, 5) {
     override def applicable() = solutions.head.length <= 6
 
-    def question() = x"Give a solution."
+    def question() = x"Give a solution"
+    
+    // this function is unused as we overwrite checkSolution
     def solution() = x"The solutions include ${SItemize(namedSolutions.take(5).map(p => ~p.toExpr)*)}."
 
     // Override with domain-specific checking:
@@ -156,13 +169,12 @@ case class ExpressionBasedDeterminisiticSearchProblem(
   }
 
   object giveAllSolutions extends Subproblem("apply", 3, 5) {
-    override def applicable() = solutions.length <= 3
+    override def applicable() = 2 <= solutions.length && solutions.length <= 3
     def question() = {
       val n      = solutions.length
-      val plural = if (n > 1) "s" else ""
-      x"Give all $n solution$plural whose length is at most $searchDepth."
+      x"Give all $n solutions whose length is at most $maxSearchDepth."
     }
-    def solution() = x"The solution(s) is/are ${SItemize(namedSolutions.map(p => ~p.toExpr)*)}."
+    def solution() = x"The solution(s) is/are ${SItemize(namedSolutions.map(formatPath)*)}."
   }
 
   GroupConstraint(1, 1, giveSolution, giveAllSolutions)

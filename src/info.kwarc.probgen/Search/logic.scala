@@ -36,6 +36,8 @@ trait SearchProblem[S,A] {
   val initial: List[S]
   /** the set of goal states (must be a predicate so that searching for them makes sense) */
   def goal(s: S): Boolean
+  /** the maximum depth we are willing to search for solutions */
+  val maxSearchDepth: Int
 
   /** applies a list of actions in a state, returns the possible resulting states */
   def apply(from: List[S], path: List[A]): List[S] = {
@@ -68,9 +70,8 @@ trait SearchProblem[S,A] {
     findSolutions(start, depth, Nil).sortBy(_.length)
   }
 
-  val searchDepth = 8
-  /** the solutions up to searchDepth */
-  lazy val solutions = solve(searchDepth)
+  /** the solutions up to maxSearchDepth */
+  lazy val solutions = solve(maxSearchDepth)
   /** the state-action pairs that are not applicable */
   lazy val inapplicableActions: List[(S,A)] = states.flatMap {s => actions.flatMap {a =>
     if (trans(s,a).isEmpty) List((s,a)) else Nil

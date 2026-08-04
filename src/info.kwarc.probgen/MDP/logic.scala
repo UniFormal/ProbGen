@@ -138,7 +138,7 @@ case class CircularMDP(numStates: Int, initial: Int, successProb: Double) extend
     x"Its possible actions are:",
     SItemize(
       x"${-1} (move left) or ${1} (move right), which make no movement if they fail",
-      x"${2} (move left twice), which moves one step to the right if it fails"
+      x"${2} (move right twice), which moves one step to the left if it fails"
     ),
     x"All actions succeed with probability $successProb and fail otherwise."
   ), "\n")

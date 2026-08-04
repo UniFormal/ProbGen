@@ -256,7 +256,7 @@ case class SPlainText(body: String) extends SText {
       .replace("\\geq", ">=")
       .replace("\\neq", "!=")
       .replace("\\in", "in")
-    s.trim
+    s
   }
   override def toHTML: String = {
     val parts = body.split("\\$", -1)

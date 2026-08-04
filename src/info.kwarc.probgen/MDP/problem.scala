@@ -107,7 +107,7 @@ case class MDPProblem(mdp: MDP,isPolIter: Boolean) extends Problem[MDPProblem] {
     val dist1 = mdp.trans(s1, a1)
     val s2 = dist1.keys.headOption.getOrElse(s1)
 
-    def question() = x"Calculate the probability of the agent moving along to $s1 and then to $s2"
+    def question() = x"Calculate the probability of the agent moving along to $s1 and then to $s2 "
     + x"by taking the actions ${mdp.actionName(a0)} and ${mdp.actionName(a1)}."
     
     def solution() = {

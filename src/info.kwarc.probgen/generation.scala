@@ -46,7 +46,7 @@ object Generator {
     val r = Random.nextFloat()
     r <= prob
   }
-  /** choose an integer from a range */
+  /** choose an integer from a range, min/max included */
   def chooseInt(min: Int, max: Int) = {
     val n = Random.nextInt(max+1-min)
     min+n
