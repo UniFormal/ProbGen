@@ -10,7 +10,7 @@ enum Formula():
 
 trait PropLogic{
 
-  val identNames :List[String]
+  val formula :Formula
 
   def apply(formula:Formula):Form =
     formula match{

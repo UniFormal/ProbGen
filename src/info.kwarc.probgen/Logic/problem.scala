@@ -1,7 +1,15 @@
 package info.kwarc.probgen
-
-
-case class PropLogicProblem(val identNames : List[String],possibleDepth:Int) extends PropLogic with Problem[PropLogicProblem]{
+import SText.*
+case class PropLogicProblem(val formula :Formula,possibleDepth:Int) extends PropLogic with Problem[PropLogicProblem]{
+  def intro() :SText = {
+    val fs:List[String] = this.collect(formula).toList
+    val stex:Form = this(formula)
+    val pretty = stex.toSTeX
+    SText(
+      x"consider the following Propositional Variables ${fs}",
+      x"find all valid assignments for the formula ${pretty}"
+    ) 
+  }
   def collect(form : Formula):Set[String] =
     form match{
       case Formula.Var(x) => Set(x)
@@ -12,6 +20,6 @@ case class PropLogicProblem(val identNames : List[String],possibleDepth:Int) ext
     }
 
   def findAssignment(form:Formula) : Context=
-    val vars:List[(String,Boolean)] = collect(form).toList.toList.map(st => (st,chooseBoolean(0.5)))
+    val vars:List[(String,Boolean)] = this.collect(form).toList.map(st => (st,Generator.chooseBoolean(0.5)))
     Context(vars)
 }

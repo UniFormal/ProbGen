@@ -30,6 +30,7 @@ object main {
           sb ++= renderProblem("MDP Problem",         MDPGenerator.make())
           sb ++= renderProblem("Probability Problem", BasicProbabilityProblemGenerator.make())
           sb ++= renderProblem("Search Problem",      SearchProblemGenerator.make())
+          sb  ++= renderProblem("Logic Problem ", LogicProblemGenerator.make())
           container.innerHTML = sb.toString()
         } catch {
           case e: Throwable =>
