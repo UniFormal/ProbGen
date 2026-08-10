@@ -4,9 +4,9 @@ package info.kwarc.probgen
 // Result type for answer checking
 // ---------------------------------------------------------------------------
 abstract class CheckResult
-case class Correct()                          extends CheckResult
+case class Correct() extends CheckResult
 case class NotCheckable(expectedSolution: String) extends CheckResult
-case class Incorrect(hint: String)            extends CheckResult
+case class Incorrect(hint: String) extends CheckResult
 
 // ---------------------------------------------------------------------------
 // Generator base
@@ -22,15 +22,15 @@ trait ProblemGenerator[PD <: Problem[PD]] {
 trait Problem[PD <: Problem[PD]] {
   def intro(): SText
 
-  private var subproblems: List[Subproblem]       = Nil
+  private var subproblems: List[Subproblem] = Nil
   private var groupConstraints: List[GroupConstraint] = Nil
 
   abstract class Subproblem(val id: String, pts: Int, testspace: Int) {
     subproblems = subproblems ::: List(this)
 
     def dependencies: List[String] = Nil
-    def applicable(): Boolean      = true
-    def init(): Unit               = {}
+    def applicable(): Boolean = true
+    def init(): Unit = {}
     def question(): SText
     def solution(): SText
 
@@ -49,7 +49,12 @@ trait Problem[PD <: Problem[PD]] {
       clean.split("\\+").map(_.trim).filter(_.nonEmpty).sorted.mkString("+")
     }
 
-    def toSTeX() = SSubproblem(pts, question(), SSolution(testspace, List(solution())), this.hashCode.abs.toString)
+    def toSTeX() = SSubproblem(
+      pts,
+      question(),
+      SSolution(testspace, List(solution())),
+      this.hashCode.abs.toString
+    )
   }
 
   case class GroupConstraint(atLeast: Int, atMost: Int, choices: Subproblem*) {
@@ -63,7 +68,8 @@ trait Problem[PD <: Problem[PD]] {
       val currentlyChosen = subs.filter(p => gc.choices.contains(p))
       if (currentlyChosen.length > gc.atMost) {
         val numRemove = currentlyChosen.length - gc.atMost
-        val remove    = Generator.chooseSome(currentlyChosen, numRemove, numRemove, false)
+        val remove =
+          Generator.chooseSome(currentlyChosen, numRemove, numRemove, false)
         subs = subs.diff(remove)
       }
     }
