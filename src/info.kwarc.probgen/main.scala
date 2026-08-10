@@ -1,16 +1,18 @@
 package info.kwarc.probgen
 
+// for dom access
 import org.scalajs.dom
 import org.scalajs.dom.document
 import org.scalajs.dom.html
-import scala.scalajs.js.annotation.JSExportTopLevel
-import scala.scalajs.js.timers.setTimeout
 
+// for exporting scala functions to Javascript
+import scala.scalajs.js.annotation.JSExportTopLevel
 
 object main {
 
   private val subproblemMap = scala.collection.mutable.Map[String, Problem[?]#Subproblem]()
 
+  /** gets called when index.html is opened */
   def main(args: Array[String]): Unit = {
     document.getElementById("new-btn")
       .addEventListener("click", (_: dom.Event) => generateAndRender())
@@ -63,6 +65,9 @@ object main {
        </div>"""
   }
 
+  /** called from within the javascript embedeed in the HTML generated from a Problem
+    * (exported to Javascript so that the Javascript can find it)
+    */
   @JSExportTopLevel("checkAnswer")
   def checkAnswer(id: String): Unit = {
     val inputEl = document.getElementById(s"ans-$id").asInstanceOf[html.Input]
