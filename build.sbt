@@ -1,7 +1,7 @@
-enablePlugins(ScalaJSPlugin)
-
 name := "ProbGen"
 scalaVersion := "3.7.4"
+
+enablePlugins(ScalaJSPlugin)
 
 Compile / scalaSource := file("src")
 

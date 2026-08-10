@@ -1,3 +1,4 @@
+/*
 package info.kwarc.probgen
 object Test {
   @main
@@ -12,3 +13,4 @@ object Test {
     println(y)
     println(c.toSTeX)
 }
+*/
