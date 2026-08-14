@@ -26,7 +26,10 @@ trait PropLogic {
 
 object PropLogic {
   // we know that
-  def findSatifsfyingassignment(form: Form): Option[Context] =
+  def findassignment(
+      form: Form,
+      satisfying: Boolean
+  ): Option[Context] =
     val collected = collectVars(form)
     val size = collected.size
     val assignments = efficientAssignment(size)
@@ -35,7 +38,8 @@ object PropLogic {
       val zipped = collected.toList.zip(sq)
       val ctx = Context(zipped)
       val eval = Evaluator(form)(using ctx)
-      eval
+      if satisfying then eval
+      else !eval
     })
     ans.map(f => {
       val x = collected.toList.zip(f.toList)
@@ -118,9 +122,11 @@ object Mytest {
         Conn(And, List(BVar("C"), BVar("D")))
       )
     )
-    val all = PropLogic.findSatifsfyingassignment(m)
-    if all.isDefined then
-      val y = all.get
-      println(y)
+    val k = Conn(Or, List(BVar("A"), Conn(Neg, List(BVar("A")))))
+    val ans = PropLogic.findassignment(k, false)
+    if ans.isDefined then
+      val x = ans.get
+      println(x)
+    else println("can't find any assignments")
 
 }
