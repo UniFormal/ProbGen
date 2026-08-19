@@ -7,7 +7,9 @@ Compile / scalaSource := file("src")
 
 // ScalaJS settings
 scalaJSUseMainModuleInitializer := true
-mainClass := Some("info.kwarc.probgen.main")
+//mainClass := Some("info.kwarc.probgen.main")
+Compile / mainClass := Some("info.kwarc.probgen.main")
+Compile / discoveredMainClasses := Seq("info.kwarc.probgen.main")
 
 // NoModule = single plain .js file, easiest for opening index.html directly
 scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.NoModule) }
