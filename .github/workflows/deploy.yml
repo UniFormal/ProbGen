@@ -3,7 +3,7 @@ name: Deploy ProbGen
 on:
   push:
     branches:
-      - publicProbGen
+      - publicProblemGen
   workflow_dispatch:
 
 permissions:
