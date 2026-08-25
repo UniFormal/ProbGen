@@ -76,42 +76,10 @@ object PropLogic {
       Array.tabulate(n)(i => (mask & (1 << i)) != 0)
     }
 
-  // This converts from and form to cnf
-  def convertCNF(form: Form): Option[Form] =
-    form match
-      case Conn(Implies, args) => {
-        // the first condition is that the list is has atleast 2 elements
-        args match
-          case xy :+ x => {
-            if xy.isEmpty then convertCNF(x)
-            else
-              val first = convertCNF(Conn(Neg, List(Conn(Implies, xy)))).get
-              val second = convertCNF(x).get
-              Some(Conn(Or, List(first, second)))
-          }
-          case Nil => None
-      }
-      case Conn(And, args) => {
-        val x = args.map(convertCNF).map(f => f.get)
-        Some(Conn(And, x))
-      }
-      case Conn(Or, args) => {
-        val x = args.map(convertCNF).map(f => f.get)
-        Some(Conn(Or, x))
-      }
-      case Conn(Neg, args) => {
-        val x = args.map(convertCNF).map(f => f.get)
-        Some(Conn(Neg, x))
-      }
-      case BVar(name) => Some(BVar(name))
-      case _          => None
+  def convertImplies(form: Form): Form =
 
-  def toNNF(form: Form): Form =
-    form match
-      case Conn(Neg, args) => {
-        Conn(Neg, args)
-      }
-      case a => a
+
+    form
 
   def collectVars(form: Form): Set[String] =
     var collector: Set[String] = Set()
