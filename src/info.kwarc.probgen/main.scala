@@ -24,7 +24,7 @@ object main {
     val container = document.getElementById("container").asInstanceOf[html.Element]
     container.innerHTML = "<p class='loading'>Generating problems…</p>"
 
-    // use requestAnimationFrame and setTimeout so it actually renders "Generating problems..." 
+    // use requestAnimationFrame and setTimeout so it actually renders "Generating problems..."
     dom.window.requestAnimationFrame { _ =>
       dom.window.setTimeout(() => {
         try {
@@ -32,7 +32,7 @@ object main {
           sb ++= renderProblem("MDP Problem",         MDPGenerator.make())
           sb ++= renderProblem("Probability Problem", BasicProbabilityProblemGenerator.make())
           sb ++= renderProblem("Search Problem",      SearchProblemGenerator.make())
-          sb ++= renderProblem("Adversarial Search",  MinimaxProblemGenerator.make())
+          //sb ++= renderProblem("Adversarial Search",  MinimaxProblemGenerator.make())
           //sb  ++= renderProblem("Logic Problem ", LogicProblemGenerator.make())
           sb ++= renderProblem("CSP Problem",         CSPGenerator.make())
           container.innerHTML = sb.toString()
