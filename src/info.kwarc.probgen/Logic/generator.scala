@@ -7,10 +7,10 @@ package info.kwarc.probgen
   * picked 3x as often as "Or", and Implies/Not never get picked at all.
   */
 case class ConnectiveWeights(
-    and: Double = 25,
-    or: Double = 25,
-    implies: Double = 25,
-    not: Double = 25
+    and: Double = 30,
+    or: Double = 30,
+    implies: Double = 32,
+    not: Double = 8
 )
 
 /** State threaded through generation: how deep the formula currently is and
