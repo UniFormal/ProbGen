@@ -59,9 +59,39 @@ object Expr {
 
 sealed abstract class Form extends Expr
 case class Conn(op: COper, args: Seq[Form]) extends Form {
-  def toSTeX = op.sTeX(args.map(_.toSTeX))
-  def toHTML = op.html(args.map(_.toHTML))
-  def toText = op.text(args.map(_.toText))
+  // Precedence (tighter binds higher), matching the recursive-descent
+  // grammar in FormulaParser: Implies < Or < And < Neg. Rendering has to
+  // respect this and add parentheses where needed, or nesting different
+  // connectives (e.g. the And-of-Ors CNF produces, or a Neg wrapping a
+  // non-literal) would print as a formula that means something else once
+  // parsed back in - or, for a human reader, just looks ambiguous.
+  private def precedence(o: COper): Int = o match {
+    case Neg     => 3
+    case And     => 2
+    case Or      => 1
+    case Implies => 0
+    case _       => 4 // not a propositional connective; never needs parens
+  }
+  // Implies is right-associative in the grammar (p -> q -> r means
+  // p -> (q -> r)), so an Implies child only prints unambiguously in the
+  // last argument position; any earlier ("left") position needs parens even
+  // though it's the same precedence as its parent.
+  private def needsParens(child: Form, index: Int): Boolean = child match {
+    case Conn(childOp, _) =>
+      val childPrec = precedence(childOp)
+      childPrec < precedence(op) ||
+      (op == Implies && childOp == Implies && index < args.length - 1)
+    case _ => false
+  }
+  private def rendered(render: Form => String): Seq[String] =
+    args.zipWithIndex.map { case (a, i) =>
+      val s = render(a)
+      if (needsParens(a, i)) s"($s)" else s
+    }
+
+  def toSTeX = op.sTeX(rendered(_.toSTeX))
+  def toHTML = op.html(rendered(_.toHTML))
+  def toText = op.text(rendered(_.toText))
 }
 case class Pred(op: FOper, args: Seq[Term]) extends Form {
   def toSTeX = op.sTeX(args.map(_.toSTeX))

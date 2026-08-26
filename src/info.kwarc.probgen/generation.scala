@@ -19,7 +19,7 @@ case class State(vars: List[String], extraInts: List[Int] = Nil,
 
 /**
   * This objects collects utility methods for generating random objects.
-  * It was originally intended to allow generating random [[Formula]]s and [[Term]]s
+  * It was originally intended to allow generating random [[Form]]s and [[Term]]s
   * based on certain criteria such as depth of the syntax tree,
   * but it is not clear how well this will work.
   * Either way the basic functions are good for reuse.
@@ -50,6 +50,23 @@ object Generator {
   def chooseInt(min: Int, max: Int) = {
     val n = Random.nextInt(max+1-min)
     min+n
+  }
+  /** choose one value from a list of (value, weight) pairs; the weights are
+    * relative frequencies ("percentages") - they don't need to sum to any
+    * particular total, they get normalized against their own sum */
+  def chooseWeighted[A](options: Seq[(A, Double)]): A = {
+    require(options.nonEmpty, "chooseWeighted needs at least one option")
+    val total = options.map(_._2).sum
+    require(total > 0, "at least one weight must be positive")
+    val r = Random.nextDouble() * total
+    var acc = 0.0
+    var result = options.head._1
+    var found = false
+    for ((a, w) <- options if !found) {
+      acc += w
+      if (r < acc) { result = a; found = true }
+    }
+    result
   }
 
   /* methods that try to generate random terms and formulas */

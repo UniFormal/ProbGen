@@ -1,29 +1,5 @@
 package info.kwarc.probgen
 
-import info.kwarc.probgen.Formula.Not
-
-enum Formula():
-  case Var(name: String)
-  case Not(f: Formula)
-  case And(left: Formula, right: Formula)
-  case Or(left: Formula, right: Formula)
-  case Implies(left: Formula, right: Formula)
-
-trait PropLogic {
-
-  val formula: Formula
-
-  def apply(formula: Formula): Form =
-    formula match {
-      case Formula.Var(n)        => BVar(n)
-      case Formula.Not(f)        => Conn(Neg, List(apply(f)))
-      case Formula.And(l, r)     => Conn(And, List(apply(l), apply(r)))
-      case Formula.Or(l, r)      => Conn(Or, List(apply(l), apply(r)))
-      case Formula.Implies(l, r) => Conn(Implies, List(apply(l), apply(r)))
-    }
-
-}
-
 object PropLogic {
   // we know that
   def findassignment(
@@ -114,16 +90,29 @@ object PropLogic {
       case literal          => if negate then Conn(Neg, List(literal)) else literal
 
   // Distribute Or over And: (a and b) or c == (a or c) and (b or c).
-  private def distribute(f1: Form, f2: Form): Form =
+  private def distributeOr(f1: Form, f2: Form): Form =
     (f1, f2) match
-      case (Conn(And, args), _) => Conn(And, args.map(a => distribute(a, f2)))
-      case (_, Conn(And, args)) => Conn(And, args.map(a => distribute(f1, a)))
+      case (Conn(And, args), _) => Conn(And, args.map(a => distributeOr(a, f2)))
+      case (_, Conn(And, args)) => Conn(And, args.map(a => distributeOr(f1, a)))
       case _                    => Conn(Or, List(f1, f2))
 
   private def distributeOrOverAnd(form: Form): Form =
     form match
-      case Conn(Or, args)  => args.map(distributeOrOverAnd).reduceLeft(distribute)
+      case Conn(Or, args)  => args.map(distributeOrOverAnd).reduceLeft(distributeOr)
       case Conn(And, args) => Conn(And, args.map(distributeOrOverAnd))
+      case x                => x
+
+  // Distribute And over Or: (a or b) and c == (a and c) or (b and c).
+  private def distributeAnd(f1: Form, f2: Form): Form =
+    (f1, f2) match
+      case (Conn(Or, args), _) => Conn(Or, args.map(a => distributeAnd(a, f2)))
+      case (_, Conn(Or, args)) => Conn(Or, args.map(a => distributeAnd(f1, a)))
+      case _                   => Conn(And, List(f1, f2))
+
+  private def distributeAndOverOr(form: Form): Form =
+    form match
+      case Conn(And, args) => args.map(distributeAndOverOr).reduceLeft(distributeAnd)
+      case Conn(Or, args)  => Conn(Or, args.map(distributeAndOverOr))
       case x                => x
 
   // Merge nested And/Or of the same connective into one flat list, so the
@@ -143,6 +132,118 @@ object PropLogic {
   // a flat conjunction of disjunctions of (possibly negated) variables.
   def toCNF(form: Form): Form =
     flatten(distributeOrOverAnd(toNNF(form)))
+
+  private def isLiteral(f: Form): Boolean =
+    f match
+      case BVar(_)              => true
+      case Conn(Neg, Seq(BVar(_))) => true
+      case _                     => false
+
+  // Is this formula literally (syntactically) in Conjunctive Normal Form,
+  // i.e. a conjunction of disjunctions of literals? Used to grade CNF
+  // exercises structurally, on top of just checking equivalence.
+  def isCNF(form: Form): Boolean =
+    def isClause(f: Form): Boolean = f match
+      case Conn(Or, lits) => lits.forall(isLiteral)
+      case l              => isLiteral(l)
+    form match
+      case Conn(And, clauses) => clauses.forall(isClause)
+      case f                  => isClause(f)
+
+  // Is this formula literally (syntactically) in Disjunctive Normal Form,
+  // i.e. a disjunction of conjunctions of literals? Dual of isCNF.
+  def isDNF(form: Form): Boolean =
+    def isTerm(f: Form): Boolean = f match
+      case Conn(And, lits) => lits.forall(isLiteral)
+      case l                => isLiteral(l)
+    form match
+      case Conn(Or, terms) => terms.forall(isTerm)
+      case f                => isTerm(f)
+
+  // Convert an arbitrary propositional formula into Disjunctive Normal Form:
+  // a flat disjunction of conjunctions of (possibly negated) variables.
+  // Dual of toCNF: same NNF step, then distribute And over Or instead.
+  def toDNF(form: Form): Form =
+    flatten(distributeAndOverOr(toNNF(form)))
+
+  // ── Tseitin transformation ─────────────────────────────────────────────
+  // toCNF/toDNF above distribute connectives out, which can blow the formula
+  // up exponentially (e.g. a balanced tree of n Ors nested under Ands).
+  // Tseitin's transformation avoids that: it introduces one fresh variable
+  // per subformula and adds small "definitional" clauses saying that
+  // variable is equivalent to the subformula it names, giving a result whose
+  // size is linear in the size of the input (at the cost of extra variables,
+  // and of being only *equisatisfiable* with the input rather than
+  // equivalent to it).
+
+  private def freshVarSupply(taken: Set[String]): () => String =
+    var counter = 0
+    () =>
+      var name = s"t$counter"
+      counter += 1
+      while taken.contains(name) do
+        name = s"t$counter"
+        counter += 1
+      name
+
+  private def neg(f: Form): Form = Conn(Neg, List(f))
+  private def clause(lits: Form*): Form = Conn(Or, lits.toList)
+
+  // Walks the formula bottom-up, replacing every And/Or/Neg/Implies node by a
+  // fresh literal `p` and recording the CNF clauses that pin `p` down to be
+  // equivalent to that node (in terms of the literals its children were
+  // already replaced by). Returns the literal for the whole formula together
+  // with every clause collected along the way.
+  private def tseitinEncode(
+      form: Form,
+      fresh: () => String
+  ): (Form, List[Form]) =
+    form match
+      case BVar(_) | Pred(_, _) => (form, Nil)
+      case Conn(Implies, _)     => tseitinEncode(eliminateImplies(form), fresh)
+      case Conn(Neg, Seq(a)) =>
+        val (la, defsA) = tseitinEncode(a, fresh)
+        val p = BVar(fresh())
+        // p <-> not(la) :  (not(p) or not(la)) and (p or la)
+        val defs = List(clause(neg(p), neg(la)), clause(p, la))
+        (p, defsA ++ defs)
+      case Conn(And, args) =>
+        val encoded = args.map(tseitinEncode(_, fresh))
+        val lits = encoded.map(_._1)
+        val p = BVar(fresh())
+        // p <-> (l1 and ... and ln):
+        //   forward:  for each li, (not(p) or li)
+        //   backward: (p or not(l1) or ... or not(ln))
+        val forward = lits.map(l => clause(neg(p), l)).toList
+        val backward = clause(p +: lits.map(neg)*)
+        (p, encoded.flatMap(_._2).toList ++ forward :+ backward)
+      case Conn(Or, args) =>
+        val encoded = args.map(tseitinEncode(_, fresh))
+        val lits = encoded.map(_._1)
+        val p = BVar(fresh())
+        // p <-> (l1 or ... or ln):
+        //   forward:  (not(p) or l1 or ... or ln)
+        //   backward: for each li, (p or not(li))
+        val forward = clause(neg(p) +: lits*)
+        val backward = lits.map(l => clause(p, neg(l))).toList
+        (p, encoded.flatMap(_._2).toList ++ (forward :: backward))
+      case atom => (atom, Nil)
+
+  // Tseitin CNF: equisatisfiable with `form`, linear in its size. The result
+  // is (root-literal and def-clause and def-clause and ...); asserting it
+  // forces the fresh root literal true, which forces `form` itself true.
+  def tseitinCNF(form: Form): Form =
+    val fresh = freshVarSupply(collectVars(form))
+    val (rootLit, defs) = tseitinEncode(form, fresh)
+    flatten(Conn(And, rootLit :: defs))
+
+  // Tseitin DNF: negating a flat CNF into a flat DNF is free (De Morgan on a
+  // two-level formula needs no redistribution), so build it as
+  // not(tseitinCNF(not(form))). This is linear in size and, mirroring how
+  // tseitinCNF preserves satisfiability of `form`, preserves validity of
+  // `form`: `form` is a tautology iff the returned DNF is.
+  def tseitinDNF(form: Form): Form =
+    flatten(toNNF(neg(tseitinCNF(neg(form)))))
 
   def collectVars(form: Form): Set[String] =
     var collector: Set[String] = Set()
@@ -233,7 +334,11 @@ object FormulaParser {
         Conn(And, forms.toList)
 
     private def parseNeg(): Form =
-      if (peek == "neg") then
+      // accept both "neg" and "not" - Neg.text (used by Form#toText, i.e.
+      // what's shown to users as e.g. a problem's solution) renders as
+      // "not", so the parser must accept that spelling too or its own
+      // output wouldn't parse back in
+      if (peek == "neg" || peek == "not") then
         consume()
         Conn(Neg, List(parseNeg()))
       else parseAtom()
@@ -278,5 +383,42 @@ object Mytest {
     println(s"(p -> q) equiv (neg p or q)?          ${PropLogic.isEquivalent(f1, f2)}")
     println(s"(p -> q) equiv (neg (p and neg q))?   ${PropLogic.isEquivalent(f1, f3)}")
     println(s"(p -> q) equiv (p and q)?             ${PropLogic.isEquivalent(f1, PropLogic.parseForm("p and q"))}")
+
+    println("=======================")
+    val dnfSrc = PropLogic.parseForm("(p and q) or (neg r and s)")
+    val dnf = PropLogic.toDNF(dnfSrc)
+    println(s"${dnfSrc.toText}  ==DNF==>  ${dnf.toText}")
+    println(s"still equivalent to original? ${PropLogic.isEquivalent(dnfSrc, dnf)}")
+
+    println("=======================")
+    val tCnf = PropLogic.tseitinCNF(gk)
+    println(s"${gk.toText}  ==Tseitin CNF==>  ${tCnf.toText}")
+    val tDnf = PropLogic.tseitinDNF(gk)
+    println(s"${gk.toText}  ==Tseitin DNF==>  ${tDnf.toText}")
+    println(s"gk is a tautology? ${PropLogic.findassignment(gk, false).isEmpty}")
+    println(s"tseitin DNF is a tautology? ${PropLogic.findassignment(tDnf, false).isEmpty}")
+
+    println("=======================")
+    for (_ <- 1 to 5)
+      val rf = PropFormulaGenerator.generate(
+        vars = List("p", "q", "r"),
+        minDepth = 2,
+        maxDepth = 4,
+        minVars = 2,
+        weights = ConnectiveWeights(and = 40, or = 20, implies = 30, not = 10)
+      )
+      println(rf.toText)
+
+    println("=======================")
+    val problem = LogicProblemGenerator.make()
+    val subs = problem.chooseSubproblems()
+    subs.foreach { sub =>
+      println(s"[${sub.id}] ${sub.question().toText}")
+      println(s"  expected: ${sub.solution().toText}")
+    }
+    val cnfSub = subs.find(_.id == "cnf").get
+    println(s"  submit expected solution -> ${cnfSub.checkSolution(cnfSub.solution().toText)}")
+    println(s"  submit garbage 'p and'    -> ${cnfSub.checkSolution("p and")}")
+    println(s"  submit 'p or not p'       -> ${cnfSub.checkSolution("p or neg p")}")
 
 }
