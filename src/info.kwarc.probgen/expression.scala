@@ -59,34 +59,20 @@ object Expr {
 
 sealed abstract class Form extends Expr
 case class Conn(op: COper, args: Seq[Form]) extends Form {
-  // Precedence (tighter binds higher), matching the recursive-descent
-  // grammar in FormulaParser: Implies < Or < And < Neg. Rendering has to
-  // respect this and add parentheses where needed, or nesting different
-  // connectives (e.g. the And-of-Ors CNF produces, or a Neg wrapping a
-  // non-literal) would print as a formula that means something else once
-  // parsed back in - or, for a human reader, just looks ambiguous.
-  private def precedence(o: COper): Int = o match {
-    case Neg     => 3
-    case And     => 2
-    case Or      => 1
-    case Implies => 0
-    case _       => 4 // not a propositional connective; never needs parens
-  }
-  // Implies is right-associative in the grammar (p -> q -> r means
-  // p -> (q -> r)), so an Implies child only prints unambiguously in the
-  // last argument position; any earlier ("left") position needs parens even
-  // though it's the same precedence as its parent.
-  private def needsParens(child: Form, index: Int): Boolean = child match {
-    case Conn(childOp, _) =>
-      val childPrec = precedence(childOp)
-      childPrec < precedence(op) ||
-      (op == Implies && childOp == Implies && index < args.length - 1)
-    case _ => false
-  }
+  // Every child that is itself a connective application gets parenthesized,
+  // full stop - not just where operator-precedence would technically
+  // require it (FormulaParser's grammar implies Implies binds loosest, then
+  // Or, then And, then Neg tightest, with Implies right-associative).
+  // Relying on a reader to know that table to correctly read an unbracketed
+  // formula makes it genuinely unclear; always bracketing every nested
+  // connective removes that ambiguity entirely, at the cost of a few more
+  // parens than strictly necessary. Bare variables/predicates are left
+  // unparenthesized, and the outermost formula isn't wrapped since it has
+  // no parent to disambiguate from.
   private def rendered(render: Form => String): Seq[String] =
-    args.zipWithIndex.map { case (a, i) =>
-      val s = render(a)
-      if (needsParens(a, i)) s"($s)" else s
+    args.map {
+      case c: Conn => s"(${render(c)})"
+      case a       => render(a)
     }
 
   def toSTeX = op.sTeX(rendered(_.toSTeX))
