@@ -3,3 +3,7 @@
 /target
 /.bsp
 /.scalafmt.conf
+/.metals
+/.vscode
+/.bloop
+/.tex

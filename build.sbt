@@ -3,7 +3,10 @@ scalaVersion := "3.7.4"
 
 enablePlugins(ScalaJSPlugin)
 
-Compile / scalaSource := file("src")
+// absolute, so tooling (bloop/Metals) records a source *directory* rather than a
+// frozen list of files -- with a relative path, newly added files stay invisible
+// to the IDE until the build is re-imported
+Compile / scalaSource := baseDirectory.value / "src"
 
 // ScalaJS settings
 scalaJSUseMainModuleInitializer := true

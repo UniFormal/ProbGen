@@ -38,7 +38,6 @@ object MathHTML {
 // ---------------------------------------------------------------------------
 trait STeXSyntax {
   def toHTML: String
-  def toText: String = ""   // plain text for answer comparison; override where meaningful
 }
 
 case class SParams(pars: (String, String)*) {
@@ -104,7 +103,6 @@ case class SSubproblem(pts: Int, question: SText, solution: SSolution, subId: St
 case class SSolution(testspace: Float, body: List[SText]) extends SEnvironment("solution") {
   override def params = SParams("testspace" -> (testspace.toString + "cm"))
   override def toHTML: String = body.map(_.toHTML).mkString(" ")
-  override def toText: String = body.map(_.toText).mkString(" ")
 }
 
 // ---------------------------------------------------------------------------
@@ -116,7 +114,6 @@ abstract class SList(n: String, items: List[SText]) extends SEnvironment(n) {
 case class SItemize(items: SText*) extends SList("itemize", items.toList) {
   override def toHTML: String =
     "<ul>" + items.map(i => s"<li>${i.toHTML}</li>").mkString("") + "</ul>"
-  override def toText: String = items.map(_.toText).mkString(", ")
 }
 case class SEnumerate(items: SText*) extends SList("enumerate", items.toList) {
   override def toHTML: String =
@@ -182,7 +179,6 @@ trait SText extends STeXSyntax {
 case class SMath(expr: Expr) extends SText {
   override def toString = "$" + expr.toSTeX + "$"
   override def toHTML: String = s"""<span class="math">${expr.toHTML}</span>"""
-  override def toText: String = expr.toText
 }
 
 // ---------------------------------------------------------------------------
@@ -230,7 +226,6 @@ case class SSnippet(body: Seq[STeXSyntax], sep: String = "") extends SText {
     flushMath()
     sb.toString()
   }
-  override def toText: String = body.map(_.toText).mkString(sep)
   def +(rest: SSnippet): SSnippet = copy(body = this.body ++ rest.body)
 }
 
@@ -239,25 +234,6 @@ case class SSnippet(body: Seq[STeXSyntax], sep: String = "") extends SText {
 // ---------------------------------------------------------------------------
 case class SPlainText(body: String) extends SText {
   override def toString = body
-  override def toText: String = {
-    // Remove LaTeX math environment markers
-    val s = body
-      .replace("\\[", "").replace("\\]", "")
-      .replace("\\(", "").replace("\\)", "")
-      .replace("$", "")
-      // Map LaTeX commands to readable text equivalents
-      .replace("\\times", "x")
-      .replace("\\cdot", "*")
-      .replace("\\hline", "")
-      .replace("\\to", "->")
-      .replace("\\gamma", "γ")
-      .replace("\\pi", "π")
-      .replace("\\leq", "<=")
-      .replace("\\geq", ">=")
-      .replace("\\neq", "!=")
-      .replace("\\in", "in")
-    s
-  }
   override def toHTML: String = {
     val parts = body.split("\\$", -1)
     if (parts.length == 1) {
@@ -335,14 +311,6 @@ case class SMacroApplication(name: String, args: Seq[SText], flexary: Boolean) e
       case "CondProb" =>
         s"""<span class="math"><i>P</i>(${a.headOption.getOrElse("")}|${a.drop(1).mkString("")})</span>"""
       case _ => toString
-    }
-  }
-  override def toText: String = {
-    val a = args.map(_.toText)
-    name match {
-      case "uProb"    => s"P(${a.mkString("")})"
-      case "CondProb" => s"P(${a.headOption.getOrElse("")}|${a.drop(1).mkString("")})"
-      case _          => toString
     }
   }
 }

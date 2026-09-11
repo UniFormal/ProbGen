@@ -26,6 +26,21 @@ class BasicProbability(val domainSizes: List[Int]) {
   }
   def eventSum(es: List[Event]) = Plus(es.map(e => DString(eventName(e)))*)
   def valid = numVars + numEvents <= 26
+
+  // -- plain-string views of the event names, for answer checking -------------
+  /** the bare name of an event, e.g. "a" — the form a student types */
+  def eventLabel(e: Event): String = eventName(e).value.toString
+  /** every event name in this setting, used to spot typos in an answer */
+  def allEventLabels: Set[String] = events.map(eventLabel).toSet
+  /** the events making up P(f), as names */
+  def probLabels(f: Form): Set[String] = events.filter(e => eval(f, e)).map(eventLabel).toSet
+  /** the events of P(f | cond), as (numerator names, denominator names) */
+  def condProbLabels(f: Form, cond: Form): (Set[String], Set[String]) = {
+    val possible = events.filter(e => eval(cond, e))
+    val trueEvents = possible.filter(e => eval(f, e))
+    (trueEvents.map(eventLabel).toSet, possible.map(eventLabel).toSet)
+  }
+
   def eval(form: Form, ev: Event) = {
     Evaluator(form)(using Context(varNames.zip(ev)))
   }

@@ -25,7 +25,9 @@
     header h1 { font-size: 1.5rem; font-weight: 700; }
     header p  { font-size: .85rem; opacity: .8; margin-top: 2px; }
 
-    #new-btn {
+    .header-btns { display: flex; gap: 10px; }
+
+    #new-btn, #tex-btn {
       padding: 9px 20px;
       background: white;
       color: #2f80ed;
@@ -35,7 +37,9 @@
       font-weight: 600;
       cursor: pointer;
     }
-    #new-btn:hover { background: #e8f0fe; }
+    #new-btn:hover, #tex-btn:hover { background: #e8f0fe; }
+    #tex-btn { background: rgba(255,255,255,.16); color: white; }
+    #tex-btn:hover { background: rgba(255,255,255,.3); }
 
     main { max-width: 960px; margin: 28px auto; padding: 0 20px 60px; }
 
@@ -88,6 +92,27 @@
     .feedback.correct { background: #e8faf0; border: 1px solid #52c97a; color: #1a6b38; }
     .feedback.wrong   { background: #fff2f2; border: 1px solid #e05c5c; color: #7a1a1a; }
     .feedback.error   { background: #fffbe6; border: 1px solid #f0c000; color: #6b5000; }
+    .feedback.partial { background: #fff8ec; border: 1px solid #e8a33d; color: #7a4a10; }
+    .feedback.review  { background: #eef5fd; border: 1px solid #4a90d9; color: #1a3c66; }
+
+    .feedback code {
+      background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 4px;
+      font-family: 'Courier New', monospace;
+    }
+
+    /* ── Grading rubric (answer classes) ─────────────────────────── */
+    .rubric { margin-top: 8px; }
+    .rubric-expected { margin-bottom: 6px; }
+    .rubric-list { list-style: none; padding-left: 0; margin: 4px 0; }
+    .rubric-list li {
+      display: flex; gap: 8px; align-items: baseline;
+      padding: 3px 0; border-top: 1px dashed rgba(0,0,0,.12);
+    }
+    .rubric-pts {
+      flex: 0 0 auto; font-weight: 700; font-size: 12px;
+      background: rgba(74,144,217,.16); border-radius: 4px; padding: 1px 7px;
+    }
+    .rubric-note { font-style: italic; opacity: .8; margin-top: 4px; }
 
 
     .feedback.flash {
@@ -141,6 +166,25 @@
     /* ── Lists ───────────────────────────────────────────────── */
     ul, ol { padding-left: 22px; margin: 6px 0; }
     li { margin: 3px 0; }
+
+    /* ── Output panel (used by the .tex export) ─────────────── */
+    #output-panel {
+      background: white; border-radius: 12px; padding: 20px 24px;
+      margin-bottom: 20px; box-shadow: 0 1px 6px rgba(0,0,0,.1);
+      font-size: 13px;
+    }
+    .panel-section { margin-bottom: 22px; }
+    .panel-section h3 {
+      font-size: 1.05rem; margin-bottom: 10px;
+      padding-bottom: 8px; border-bottom: 2px solid #e8edf5;
+    }
+    .panel-box {
+      background: #f7f9fc; border-left: 4px solid #2f80ed;
+      border-radius: 0 8px 8px 0; padding: 12px 16px; margin-bottom: 12px;
+    }
+    .panel-title { font-weight: 600; margin-bottom: 8px; }
+    .panel-note { font-weight: 400; opacity: .65; font-size: 12px; }
+    .panel-row { display: flex; gap: 8px; flex-wrap: wrap; }
   </style>
 </head>
 <body>
@@ -149,10 +193,14 @@
     <h1>&#127891; ProbGen</h1>
     <p>Practice Problems</p>
   </div>
-  <button id="new-btn">&#8635; New Problems</button>
+  <div class="header-btns">
+    <button id="tex-btn" onclick="exportTeX()">&#128196; Export .tex</button>
+    <button id="new-btn">&#8635; New Problems</button>
+  </div>
 </header>
 
 <main>
+  <div id="output-panel" style="display:none"></div>
   <div id="container"><p class="loading">Loading…</p></div>
 </main>
 

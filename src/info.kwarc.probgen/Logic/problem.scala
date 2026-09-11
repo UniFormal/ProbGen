@@ -114,7 +114,7 @@ case class PropLogicProblem(formula: Form) extends Problem[PropLogicProblem] {
       parseAssignmentList(ownVars, input) match
         case Some(userAns) =>
           val expected = matching.map(_.toSet).toSet
-          if userAns == expected then Correct() else Incorrect(s"Not quite - expected: ${solution().toText}")
+          if userAns == expected then Correct() else Incorrect(s"Not quite - expected: ${solution().toHTML}")
         case None =>
           Incorrect("Could not parse your answer - use 'var = true/false' pairs separated by commas, and ';' between assignments.")
   }
@@ -135,7 +135,7 @@ case class PropLogicProblem(formula: Form) extends Problem[PropLogicProblem] {
 
     override def checkSolution(input: String): CheckResult =
       parseYesNo(input) match
-        case None      => NotCheckable(solution().toText)
+        case None      => NotCheckable(solution().toHTML)
         case Some(ans) =>
           if ans == valid then Correct()
           else Incorrect(s"The correct answer is: ${if valid then "yes" else "no"}.")
@@ -165,7 +165,7 @@ case class PropLogicProblem(formula: Form) extends Problem[PropLogicProblem] {
     def solution(): SText = fixes match
       case Nil          => x"(no single-connective fix found - please regenerate)"
       case one :: Nil   => x"$one"
-      case many         => SSnippet(List(x"Any one of:", SItemize(many.map(f => SPlainText(f.toText))*)))
+      case many         => SSnippet(List(x"Any one of:", SItemize(many.map(f => ~f)*)))
 
     override def checkSolution(input: String): CheckResult =
       try
@@ -195,7 +195,7 @@ case class PropLogicProblem(formula: Form) extends Problem[PropLogicProblem] {
 
     override def checkSolution(input: String): CheckResult =
       parseYesNo(input) match
-        case None      => NotCheckable(solution().toText)
+        case None      => NotCheckable(solution().toHTML)
         case Some(ans) =>
           if ans == equivalent then Correct()
           else Incorrect(s"The correct answer is: ${if equivalent then "yes" else "no"}.")
@@ -223,6 +223,6 @@ object LogicProblemGenerator extends ProblemGenerator[PropLogicProblem] {
 
   def make(): PropLogicProblem =
     val formula = PropFormulaGenerator.generate(vars, minDepth, maxDepth, minVars, weights)
-    log("chosen formula: " + formula.toText)
+    log("chosen formula: " + formula)
     PropLogicProblem(formula)
 }

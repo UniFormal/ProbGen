@@ -165,7 +165,7 @@ case class GridMDP(width: Int, height: Int, successProb: Double) extends MDP {
   val goal = (width-1, height-1)
 
   def description() = SSnippet(List(
-    x"The agent moves in a §$width \times $height§ grid.",
+    x"The agent moves in a ${Cart(DInt(width), DInt(height))} grid.",
     x"Its possible actions are ${actions.map(a => x"§${actionName(a)}§").mkString(", ")}.",
     x"These succeed with a probability of $successProb and fail without movement otherwise.",
     x""

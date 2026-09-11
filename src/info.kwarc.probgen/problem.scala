@@ -1,14 +1,6 @@
 package info.kwarc.probgen
 
 // ---------------------------------------------------------------------------
-// Result type for answer checking
-// ---------------------------------------------------------------------------
-abstract class CheckResult
-case class Correct() extends CheckResult
-case class NotCheckable(expectedSolution: String) extends CheckResult
-case class Incorrect(hint: String) extends CheckResult
-
-// ---------------------------------------------------------------------------
 // Generator base
 // ---------------------------------------------------------------------------
 trait ProblemGenerator[PD <: Problem[PD]] {
@@ -25,7 +17,7 @@ trait Problem[PD <: Problem[PD]] {
   private var subproblems: List[Subproblem] = Nil
   private var groupConstraints: List[GroupConstraint] = Nil
 
-  abstract class Subproblem(val id: String, pts: Int, testspace: Int) {
+  abstract class Subproblem(val id: String, val pts: Int, val testspace: Int) {
     subproblems = subproblems ::: List(this)
 
     def dependencies: List[String] = Nil
@@ -34,20 +26,46 @@ trait Problem[PD <: Problem[PD]] {
     def question(): SText
     def solution(): SText
 
-    // Default check: compare plain-text normalisation of input vs solution.
-    // Subclasses override this to provide domain-specific checking with hints.
-    def checkSolution(input: String): CheckResult = {
-      val expected = solution().toText.trim
-      if (normalise(input) == normalise(expected)) Correct()
-      else NotCheckable(expected)
-    }
+    /**
+      * Override to have this subproblem graded automatically. See answers.scala
+      * for the available graders. This is a `def`, not a `val`, so that it is
+      * evaluated after `init()` has bound the subproblem's random choices.
+      */
+    def grader: Option[Grader] = None
 
-    // Normalise for lenient string comparison:
-    // lowercase, strip spaces, sort additive terms
-    protected def normalise(s: String): String = {
-      val clean = s.toLowerCase.trim.split("\\s+").mkString("")
-      clean.split("\\+").map(_.trim).filter(_.nonEmpty).sorted.mkString("+")
-    }
+    /**
+      * Override to attach a grading scheme to a question that cannot be graded
+      * automatically. Used both for human marking of the printed sheet and for
+      * self-assessment in the browser.
+      */
+    def rubric: Option[AnswerRubric] = None
+
+    /**
+      * Checking order: an explicit grader wins, then a rubric, and otherwise the
+      * question is simply reported as not auto-graded. Subclasses may override
+      * this method directly for fully bespoke checking.
+      *
+      * There is deliberately no string comparison here. Comparing what a student
+      * typed against the *rendered* solution is not a semantic check: it fails on
+      * any difference of spacing, ordering or notation, so it was reporting wrong
+      * answers as often as right ones. A subproblem is graded when it says how,
+      * via `grader` (see answers.scala) or `rubric`, and otherwise it is honest
+      * about not being graded yet.
+      */
+    def checkSolution(input: String): CheckResult =
+      if (input.trim.isEmpty) MalformedInput("Please enter an answer first.")
+      else
+        grader match {
+          case Some(g) => g.grade(input)
+          case None =>
+            rubric match {
+              case Some(r) => RubricGrader(() => solution().toHTML, r).grade(input)
+              case None    => NotCheckable(solution().toHTML)
+            }
+        }
+
+    /** points actually earned, rounded to the nearest half point */
+    def awardedPoints(r: CheckResult): Double = Scoring.roundHalf(r.fraction * pts)
 
     def toSTeX() = SSubproblem(
       pts,

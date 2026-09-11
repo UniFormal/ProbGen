@@ -355,7 +355,7 @@ object FormulaParser {
         Conn(And, forms.toList)
 
     private def parseNeg(): Form =
-      // accept both "neg" and "not" - Neg.text (used by Form#toText, i.e.
+      // accept both "neg" and "not" - Neg.text (used when rendering, i.e.
       // what's shown to users as e.g. a problem's solution) renders as
       // "not", so the parser must accept that spelling too or its own
       // output wouldn't parse back in
@@ -383,9 +383,9 @@ object Mytest {
 
   def main(args: Array[String]) =
     val k = PropLogic.parseForm("p -> q -> p")
-    println(k.toText)
+    println(k)
     val gk = PropLogic.parseForm("(p -> q) -> p")
-    println(gk.toText)
+    println(gk)
     val ans = PropLogic.findAllassignments(k, true)
     val ans2 = PropLogic.findAllassignments(gk, true)
     ans.foreach(println)
@@ -395,7 +395,7 @@ object Mytest {
     println("=======================")
     val cnfSrc = PropLogic.parseForm("(p -> q) -> p")
     val cnf = PropLogic.toCNF(cnfSrc)
-    println(s"${cnfSrc.toText}  ==CNF==>  ${cnf.toText}")
+    println(s"${cnfSrc}  ==CNF==>  ${cnf}")
 
     println("=======================")
     val f1 = PropLogic.parseForm("p -> q")
@@ -408,14 +408,14 @@ object Mytest {
     println("=======================")
     val dnfSrc = PropLogic.parseForm("(p and q) or (neg r and s)")
     val dnf = PropLogic.toDNF(dnfSrc)
-    println(s"${dnfSrc.toText}  ==DNF==>  ${dnf.toText}")
+    println(s"${dnfSrc}  ==DNF==>  ${dnf}")
     println(s"still equivalent to original? ${PropLogic.isEquivalent(dnfSrc, dnf)}")
 
     println("=======================")
     val tCnf = PropLogic.tseitinCNF(gk)
-    println(s"${gk.toText}  ==Tseitin CNF==>  ${tCnf.toText}")
+    println(s"${gk}  ==Tseitin CNF==>  ${tCnf}")
     val tDnf = PropLogic.tseitinDNF(gk)
-    println(s"${gk.toText}  ==Tseitin DNF==>  ${tDnf.toText}")
+    println(s"${gk}  ==Tseitin DNF==>  ${tDnf}")
     println(s"gk is a tautology? ${PropLogic.findassignment(gk, false).isEmpty}")
     println(s"tseitin DNF is a tautology? ${PropLogic.findassignment(tDnf, false).isEmpty}")
 
@@ -428,17 +428,17 @@ object Mytest {
         minVars = 2,
         weights = ConnectiveWeights(and = 40, or = 20, implies = 30, not = 10)
       )
-      println(rf.toText)
+      println(rf)
 
     println("=======================")
     val problem = LogicProblemGenerator.make()
     val subs = problem.chooseSubproblems()
     subs.foreach { sub =>
-      println(s"[${sub.id}] ${sub.question().toText}")
-      println(s"  expected: ${sub.solution().toText}")
+      println(s"[${sub.id}] ${sub.question()}")
+      println(s"  expected: ${sub.solution()}")
     }
     val cnfSub = subs.find(_.id == "cnf").get
-    println(s"  submit expected solution -> ${cnfSub.checkSolution(cnfSub.solution().toText)}")
+    println(s"  submit expected solution -> ${cnfSub.checkSolution(cnfSub.solution().toString)}")
     println(s"  submit garbage 'p and'    -> ${cnfSub.checkSolution("p and")}")
     println(s"  submit 'p or not p'       -> ${cnfSub.checkSolution("p or neg p")}")
 

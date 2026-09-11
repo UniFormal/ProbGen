@@ -28,13 +28,10 @@ object main {
     dom.window.requestAnimationFrame { _ =>
       dom.window.setTimeout(() => {
         try {
+          // the sheet is listed once, in Problems (check latex.scala), so that the page and the
+          // exported LaTeX sheet always contain the same problems
           val sb = new StringBuilder
-          sb ++= renderProblem("MDP Problem",         MDPGenerator.make())
-          sb ++= renderProblem("Probability Problem", BasicProbabilityProblemGenerator.make())
-          sb ++= renderProblem("Search Problem",      SearchProblemGenerator.make())
-          //sb ++= renderProblem("Adversarial Search",  MinimaxProblemGenerator.make())
-          sb ++= renderProblem("Logic Problem",       LogicProblemGenerator.make())
-          sb ++= renderProblem("CSP Problem",         CSPGenerator.make())
+          Problems.all().foreach { case (title, p) => sb ++= renderProblem(title, p) }
           container.innerHTML = sb.toString()
         } catch {
           case e: Throwable =>
@@ -86,18 +83,10 @@ object main {
       case None =>
         showFeedback(fbEl, "error", "Problem not found — try generating new problems.")
       case Some(sub) =>
-        sub.checkSolution(userAns) match {
-          case Correct() =>
-            inputEl.style.borderColor = "#52c97a"
-            showFeedback(fbEl, "correct", "&#10003; Correct!")
-          case Incorrect(hint) =>
-            inputEl.style.borderColor = "#e05c5c"
-            showFeedback(fbEl, "wrong", s"&#10007; $hint")
-          case NotCheckable(expected) =>
-            inputEl.style.borderColor = "#e05c5c"
-            showFeedback(fbEl, "wrong",
-              s"&#10007; Not quite. Expected: <strong>${escHtml(expected)}</strong>")
-        }
+        // (see answers.scala) the result knows how to present itself, so adding a new kind of result never requires a change here [This is submoptimal, but it works for now]
+        val res = sub.checkSolution(userAns)
+        inputEl.style.borderColor = res.borderColor
+        showFeedback(fbEl, res.cssClass, res.messageHtml(sub.pts))
     }
 
     // show animation so it is clear that the input was checked again

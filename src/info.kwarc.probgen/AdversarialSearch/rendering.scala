@@ -9,7 +9,6 @@ package info.kwarc.probgen
 case object SAlphaBetaPruning extends SText {
   override def toString = "$\\alpha\\beta$-pruning"
   def toHTML = """<span class="math"><i>α</i><i>β</i></span>-pruning"""
-  override def toText = "alpha-beta pruning"
 }
 
 /** draws a game tree, as an SVG picture in the browser and as a tikz picture in
