@@ -12,6 +12,9 @@ object main {
 
   private val subproblemMap = scala.collection.mutable.Map[String, Problem[?]#Subproblem]()
 
+  /** the sheet shown on the page; Export .tex exports this, so both always match */
+  var currentSheet: Option[SDocument] = None
+
   /** gets called when index.html is opened */
   def main(args: Array[String]): Unit = {
     document.getElementById("new-btn")
@@ -21,6 +24,7 @@ object main {
 
   def generateAndRender(): Unit = {
     subproblemMap.clear()
+    currentSheet = None
     val container = document.getElementById("container").asInstanceOf[html.Element]
     container.innerHTML = "<p class='loading'>Generating problems…</p>"
 
@@ -28,11 +32,9 @@ object main {
     dom.window.requestAnimationFrame { _ =>
       dom.window.setTimeout(() => {
         try {
-          // the sheet is listed once, in Problems (check latex.scala), so that the page and the
-          // exported LaTeX sheet always contain the same problems
-          val sb = new StringBuilder
-          Problems.all().foreach { case (title, p) => sb ++= renderProblem(title, p) }
-          container.innerHTML = sb.toString()
+          val fragments = Problems.all().map { case (title, p) => buildFragment(title, p) }
+          currentSheet = Some(SDocument(fragments))
+          container.innerHTML = fragments.map(renderFragment).mkString
         } catch {
           case e: Throwable =>
             container.innerHTML = s"<pre style='color:red;padding:20px'>ERROR: ${e.getMessage}\n${e.getClass.getName}</pre>"
@@ -42,27 +44,17 @@ object main {
     }
   }
 
-  def renderProblem(title: String, gen: Problem[?]): String = {
-    // Choose subproblems first — these are Problem#Subproblem objects with checkSolution
+  def buildFragment(title: String, gen: Problem[?]): SFragment = {
     val subs = gen.chooseSubproblems()
-
-    // Store each subproblem by its id BEFORE rendering, using the same hashCode
-    // that SSubproblem.toHTML uses for its id attribute
-    // Use the Problem#Subproblem's own hashCode as the id.
-    // Subproblem.toSTeX() passes this same id into SSubproblem so HTML ids match.
-    subs.foreach { sub =>
-      val id = sub.hashCode.abs.toString
-      subproblemMap(id) = sub
-    }
-
-    val prob = gen.toSTeX(subs)
-    val doc  = SDocument("problem", prob)
-
-    s"""<div class="problem-card">
-         <h2>$title</h2>
-         <div class="content">${doc.toHTML}</div>
-       </div>"""
+    subs.foreach { sub => subproblemMap(sub.hashCode.abs.toString) = sub }
+    SFragment(title, List(gen.toSTeX(subs)))
   }
+
+  def renderFragment(f: SFragment): String =
+    s"""<div class="problem-card">
+         <h2>${f.title}</h2>
+         <div class="content">${f.toHTML}</div>
+       </div>"""
 
   /** called from within the javascript embedeed in the HTML generated from a Problem
     * (exported to Javascript so that the Javascript can find it)

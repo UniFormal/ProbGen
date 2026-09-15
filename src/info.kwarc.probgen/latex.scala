@@ -12,7 +12,7 @@ object Problems {
     "MDP Problem"         -> MDPGenerator.make(),
     "Probability Problem" -> BasicProbabilityProblemGenerator.make(),
     "Search Problem"      -> SearchProblemGenerator.make(),
-    // "Adversarial Search"  -> MinimaxProblemGenerator.make(),
+    "Adversarial Search"  -> MinimaxProblemGenerator.make(),
     "Logic Problem"       -> LogicProblemGenerator.make(),
     "CSP Problem"         -> CSPGenerator.make()
   )
@@ -20,13 +20,9 @@ object Problems {
 
 object TeXExport {
 
-  /** one full sheet, ready to hand to pdflatex */
-  def sheet(): String = {
-    val fragments = Problems.all().map { case (title, p) =>
-      SFragment(title, List(p.toSTeX(p.chooseSubproblems())))
-    }
-    SDocument(fragments).toStringFull
-  }
+  /** the sheet currently shown on the page, ready to hand to pdflatex */
+  def sheet(): String =
+    main.currentSheet.map(_.toStringFull).getOrElse("% no problems have been generated yet")
 
   /** the sTeX source as a string; callable from the browser console */
   @JSExportTopLevel("problemTeX")
