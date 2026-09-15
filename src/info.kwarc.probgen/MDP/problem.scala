@@ -40,8 +40,8 @@ case class MDPProblem(mdp: MDP,isPolIter: Boolean) extends Problem[MDPProblem] {
     override def applicable() = !isPolIter
     def question() = x"State the Bellman Optimality Equation for ${U("s")}."
     def solution() = SMath(U("s") ===
-      R("s") + "\\gamma" * BigMax("a" in "A")(
-        Sum("s'" in "S")(
+      R("s") + "\\gamma" * BigMax("a","A")(
+        Sum("s'","S")(
           Prob(List("s'"), List("s", "a")) * U("s'")
         )
       )
@@ -53,7 +53,7 @@ case class MDPProblem(mdp: MDP,isPolIter: Boolean) extends Problem[MDPProblem] {
     override def applicable() = isPolIter
     def question() = x"State the Bellman Expectation Equation for a fixed policy §\pi§, i.e., for ${U("\\pi","s")}."
     def solution() = SMath(U("\\pi", "s") ===
-       R("s") + "\\gamma" * Sum("s'" in "S")(
+       R("s") + "\\gamma" * Sum("s'", "S")(
          Prob(List("s'"), List("s", "\\pi"("s"))) * U("\\pi","s'")
        )
     )
@@ -93,7 +93,7 @@ case class MDPProblem(mdp: MDP,isPolIter: Boolean) extends Problem[MDPProblem] {
     
     def question() = x"Suppose we solved the utilities as ${U("s")} for every state §s§. How do we derive the optimal policy?"
     def solution() = {
-      x"Calculate the utilities for all actions and pick the max: ${"\\pi"("s") === BigArgMax(InSet("s'","S"))(Prob(Seq("s'"),Seq("s", "a")) * U("s'"))}."
+      x"Calculate the utilities for all actions and pick the max: ${"\\pi"("s") === BigArgMax("s'","S")(Prob(Seq("s'"),Seq("s", "a")) * U("s'"))}."
     }
   }
 

@@ -36,8 +36,8 @@ object CSPGenerator extends ProblemGenerator[CSPProblem] {
       }
 
       val constraints = List(
-        Implies(BVar("a"), LessEq(Var("b"), k1)),
-        Implies(Less(Var("c"), 2), BVar("a")),
+        Implies(Var("a") === DInt(1), LessEq(Var("b"), k1)),
+        Implies(Less(Var("c"), 2), Var("a") === DInt(1)),
         Less(Plus(Var("b"), Var("c")), k3),
         Less(Var("d"), Var("b")),
         c5
@@ -49,8 +49,7 @@ object CSPGenerator extends ProblemGenerator[CSPProblem] {
       // We want a solvable problem, but with few solutions (1 to 4 is ideal)
       if (solutions.nonEmpty && solutions.length <= 4 && csp.findInconsistentAssignment().isDefined) {
         log(s"Found good CSP problem after $attempts attempts. (solutions: ${solutions.length})")
-        
-        // Pick "a" as the starter assigned variable, assigning 1 (true)
+        // Pick "a" as the starter assigned variable, assigning 1
         problem = CSPProblem(csp, "a", 1)
         good = true
       }

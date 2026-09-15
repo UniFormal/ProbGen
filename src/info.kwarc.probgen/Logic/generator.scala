@@ -17,16 +17,10 @@ case class ConnectiveWeights(
   * which variables have been used so far - mirrors [[State]], the analogous
   * bookkeeping [[Generator.genTerm]] uses when generating arithmetic terms.
   */
-private case class PropFormState(
-    vars: List[String],
-    minDepth: Int,
-    maxDepth: Int,
-    minVars: Int,
-    weights: ConnectiveWeights
-) {
+private case class PropFormState(vars: Seq[String],minDepth: Int,maxDepth: Int,minVars: Int,weights: ConnectiveWeights) {
   var usedVars: List[String] = Nil
   var depth: Int = 0
-  def unusedVars: List[String] = vars.diff(usedVars)
+  def unusedVars: Seq[String] = vars.toList.diff(usedVars)
   def numUsedVars: Int = usedVars.length
 }
 
@@ -68,13 +62,8 @@ object PropFormulaGenerator {
     *                 generates mostly implications with some conjunctions and
     *                 no disjunctions/negations at all.
     */
-  def generate(
-      vars: List[String] = defaultVars,
-      minDepth: Int = defaultMinDepth,
-      maxDepth: Int = defaultMaxDepth,
-      minVars: Int = defaultMinVars,
-      weights: ConnectiveWeights = defaultWeights
-  ): Form = {
+  def generate(vars: Seq[String] = defaultVars,minDepth: Int = defaultMinDepth,maxDepth: Int = defaultMaxDepth,
+      minVars: Int = defaultMinVars,weights: ConnectiveWeights = defaultWeights): Form = {
     require(vars.nonEmpty, "need at least one variable to generate a formula")
     val state = PropFormState(vars, minDepth, maxDepth, minVars min vars.length, weights)
     genForm(state)

@@ -11,7 +11,7 @@ import SText.*
   */
 case class PropLogicProblem(formula: Form) extends Problem[PropLogicProblem] {
 
-  private def vars = PropLogic.collectVars(formula).toList.sorted
+  private def vars = formula.fvsD.sorted
 
   def intro(): SText =
     x"Consider the propositional formula $formula over the variables ${vars}." +
@@ -51,72 +51,73 @@ case class PropLogicProblem(formula: Form) extends Problem[PropLogicProblem] {
 
   // All 2^|fvars| assignments of a formula over fvars, each a List[(var,value)]
   // aligned to fvars.
-  private def allAssignments(fvars: List[String]): List[List[(String, Boolean)]] =
-    PropLogic.efficientAssignment(fvars.length).map(bits => fvars.zip(bits.toList)).toList
+  private def allAssignments(fvars: Seq[String]): Seq[Context] = PropLogic.assignments(fvars)
 
-  private def holds(f: Form, assignment: List[(String, Boolean)]): Boolean =
-    Evaluator(f)(using Context(assignment))
-
-  private def formatAssignment(assignment: List[(String, Boolean)]): String =
-    assignment.map { case (v, b) => s"$v = $b" }.mkString(", ")
+  private def holds(f: Form, assignment: Context): Boolean = Evaluator(f)(using assignment)
 
   // Parse "p = true, q = false" into a var->value set, order-independent, or
   // None if malformed or it doesn't mention exactly the given variables.
-  private def parseAssignment(fvars: List[String], s: String): Option[Set[(String, Boolean)]] =
+  private def parseAssignment(fvars: Seq[String], s: String): Option[Context] = {
     val pairs = s.split(",").toList.map(_.trim).filter(_.nonEmpty).map(_.split("=").toList.map(_.trim))
     if pairs.exists(p => p.length != 2 || !(p(1).equalsIgnoreCase("true") || p(1).equalsIgnoreCase("false")))
     then None
-    else
-      val set = pairs.map(p => (p(0), p(1).equalsIgnoreCase("true"))).toSet
-      if set.map(_._1) == fvars.toSet then Some(set) else None
+    else {
+      val set = pairs.map(p => (p(0),BLit(p(1).equalsIgnoreCase("true"))))
+      if set.map(_._1).toSet == fvars.toSet then Some(Context(set)) else None
+    }
+  }
 
   // Parse a ';'-separated list of assignments ("none"/empty means no assignments).
-  private def parseAssignmentList(fvars: List[String], s: String): Option[Set[Set[(String, Boolean)]]] =
+  private def parseAssignmentList(fvars: Seq[String], s: String): Option[Set[Context]] = {
     val trimmed = s.trim
     if trimmed.isEmpty || trimmed.equalsIgnoreCase("none") then Some(Set.empty)
-    else
-      val parsed = trimmed.split(";").toList.map(_.trim).filter(_.nonEmpty).map(parseAssignment(fvars, _))
+    else {
+      val parsed = trimmed.split(";").toList.map(_.trim).filter(_.nonEmpty).map(parseAssignment(fvars,_))
       if parsed.forall(_.isDefined) then Some(parsed.flatten.toSet) else None
-
-  private def parseYesNo(input: String): Option[Boolean] =
+    }
+  }
+  private def parseYesNo(input: String): Option[Boolean] = {
     val ans = input.trim.toLowerCase
-    if Set("yes", "y", "true").contains(ans) then Some(true)
-    else if Set("no", "n", "false").contains(ans) then Some(false)
+    if Set("yes","y","true").contains(ans) then Some(true)
+    else if Set("no","n","false").contains(ans) then Some(false)
     else None
+  }
 
   // Shared shape for "list all satisfying/falsifying assignments of ..." -
   // each instance generates its own fresh formula (distinct from `formula`
   // and from each other), so seeing one doesn't spoil the others.
-  abstract class AssignmentSubproblem(id: String, satisfying: Boolean)
-      extends Subproblem(id, 2, 4) {
+  abstract class AssignmentSubproblem(id: String, satisfying: Boolean) extends Subproblem(id, 2, 4) {
     private val kind = if satisfying then "satisfying" else "falsifying"
     var ownFormula: Form = null
-    private def ownVars = PropLogic.collectVars(ownFormula).toList.sorted
-
-    override def init(): Unit =
+    private def ownVars = ownFormula.fvsD.sorted
+    override def init() = {
       ownFormula = PropFormulaGenerator.generate(vars = vars, minDepth = 2, maxDepth = 4, minVars = 2)
+    }
 
-    private def matching: List[List[(String, Boolean)]] =
+    private def matching: Seq[Context] = {
       allAssignments(ownVars).filter(a => holds(ownFormula, a) == satisfying)
+    }
 
     def question() =
       x"List all $kind assignments of $ownFormula - every assignment that makes it" +
         x" ${if satisfying then "true" else "false"}." +
-        x" Write each as e.g. '${formatAssignment(ownVars.map(v => (v, true)))}', separate" +
+        x" Write each as e.g. '${Context(ownVars.toList.map(v => (v, BLit(true))))}', separate" +
         x" several with ';', and write 'none' if there are none."
 
-    def solution(): SText =
+    def solution(): SText = {
       val ms = matching
       if ms.isEmpty then x"There are no $kind assignments."
-      else SSnippet(List(SItemize(ms.map(a => SPlainText(formatAssignment(a)))*)))
-
-    override def checkSolution(input: String): CheckResult =
+      else SSnippet(List(SItemize(ms.map(a => SPlainText(a.toString)) *)))
+    }
+    override def checkSolution(input: String): CheckResult = {
       parseAssignmentList(ownVars, input) match
         case Some(userAns) =>
-          val expected = matching.map(_.toSet).toSet
+          val expected = matching.toSet
           if userAns == expected then Correct() else Incorrect(s"Not quite - expected: ${solution().toHTML}")
         case None =>
           Incorrect("Could not parse your answer - use 'var = true/false' pairs separated by commas, and ';' between assignments.")
+
+    }
   }
 
   object GiveSatisfyingAssignments extends AssignmentSubproblem("sat", satisfying = true)

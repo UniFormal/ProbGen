@@ -3,11 +3,7 @@ package info.kwarc.probgen
 import SText._
 import Expr._
 
-case class CSPProblem(
-  csp: CSP,
-  assignedVar: String,
-  assignedVal: Int
-) extends Problem[CSPProblem] {
+case class CSPProblem(csp: CSP, assignedVar: String, assignedVal: Int) extends Problem[CSPProblem] {
 
   override def intro(): SText = {
     val varsList = csp.variables.mkString(", ")
@@ -19,9 +15,9 @@ case class CSPProblem(
     val constraintsList = SItemize(csp.constraints.map(c => x"${c}")*)
 
     SSnippet(List(
-      x"Consider the following constraint network §\\langle V, D, C \\rangle§:",
+      x"Consider the following constraint network ${Tuple(Var("V"),Var("D"), Var("C")}:",
       SItemize(
-        x"Variables §V = \\{$varsList\\}§",
+        x"Variables ${Var("V")}: \\{$varsList\\}§",
         x"Domains §$domainsList§",
         x"Constraints §C§:"
       ),
@@ -39,9 +35,7 @@ case class CSPProblem(
       if (sols.isEmpty) {
         x"There are no solutions."
       } else {
-        val solStrings = sols.map { sol =>
-          sol.toList.sortBy(_._1).map { case (k, v) => s"$k = $v" }.mkString(", ")
-        }.mkString("; ")
+        val solStrings = sols.mkString("; ")
         x"The solutions are: $solStrings."
       }
     }
@@ -53,7 +47,7 @@ case class CSPProblem(
     def solution() = {
       csp.findInconsistentAssignment() match {
         case Some(as) =>
-          val asStr = as.toList.sortBy(_._1).map { case (k, v) => s"$k = $v" }.mkString(", ")
+          val asStr = as.toString
           x"Any assignment that is not a solution, e.g., $asStr."
         case None =>
           x"No inconsistent total assignment exists (all assignments are solutions)."

@@ -55,11 +55,14 @@ trait MDP {
   /** computes utilities and stores them */
   def solve(iterations: Int = 100, epsilon: Double = 0.001): Utilities = {
     var U: Utilities = states.map(s => s -> 0.0).toMap
+    var done = false
     for (i <- 1.to(iterations)) {
-      val U_new = valueIterationStep(U)
-      val delta = states.map(s => Math.abs(U_new(s) - U(s))).max
-      U = U_new
-      if (delta < epsilon) {utilities = U; return U}
+      if (!done) {
+        val U_new = valueIterationStep(U)
+        val delta = states.map(s => Math.abs(U_new(s) - U(s))).max
+        U = U_new
+        if (delta < epsilon) done = true
+      }
     }
     utilities = U
     U

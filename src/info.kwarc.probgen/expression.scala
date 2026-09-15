@@ -1,12 +1,57 @@
 package info.kwarc.probgen
 
-/** a simple language of expressions, similar to first-order logic with integers as the base type
-  */
+/* a simple language of expressions, similar to first-order logic with various built-in base types */
 
-abstract class Domain {
-  def apply(v: Any) = Lit(v, this)
+/** all expressions including formulas and terms */
+sealed abstract class Expr {
+  def unary_~ = SMath(this)
+  def toSTeX: String
+  def toHTML: String
+  def fvs: Seq[String]
+  def fvsD = fvs.distinct.sorted
 }
-abstract class IntegerDomain extends Domain
+
+object Expr {
+  implicit def fromInt(i: Int): Term = DInt(i)
+  implicit def fromDouble(d: Double): Term = DDouble(d)
+  implicit def stringToId(s: String): Var = Var(s)
+  def !(a: Any) = apply(a)
+
+  def apply(a: Any) = fromAny(a)
+  def fromAnyO(a: Any): Option[Term] = {
+    try {Some(fromAny(a))}
+    catch {case e: Exception => None}
+  }
+  def fromAny(a: Any): Term = a match {
+    case e: Term => e
+    case e: ExprLike => e.toExpr
+    case i: Int => DInt(i)
+    case s: String => DString(s)
+    case l: Seq[_] => FinSeq(l.map(fromAny)*)
+    case s: Set[_] => FinSet(s.toList.map(fromAny)*)
+    case t: Tuple2[_,_] => Tuple(t.productIterator.toList.map(fromAny)*)
+  }
+
+  def toHTML(es: Seq[Expr], sep: String = "", open: String = "", close: String = "") = {
+    val oS = if (open.isEmpty) "" else s"<mo>$open</mo>"
+    val cS = if (close.isEmpty) "" else s"<mo>$close</mo>"
+    es.map(_.toHTML).mkString(oS, s"<mo>$sep</mo>", cS)
+  }
+}
+
+trait ExprLike {
+  def toExpr: Term
+}
+
+implicit class AnyToExpr(a: Any) {
+  def unary_! = Expr(a)
+}
+
+/** built-in literals */
+abstract class Domain
+abstract class IntegerDomain extends Domain {
+  def apply(v: Int) = Lit(v, this)
+}
 trait OrderedDomain {
   def values: List[Any]
 }
@@ -15,59 +60,18 @@ case class DUpto(n: Int) extends IntegerDomain with OrderedDomain {
 }
 case object DNat extends IntegerDomain
 case object DInt extends IntegerDomain
-case object DDouble extends IntegerDomain
-case object DString extends Domain
-case class DList(elem: Domain) extends Domain
+case object DDouble extends Domain {
+  def apply(v: Double) = Lit(v, this)
+}
+case object DString extends Domain {
+  def apply(v: String) = Lit(v, this)
+}
 case object DOther extends Domain
 
-sealed abstract class Expr {
-  def unary_~ = SMath(this)
-  def toSTeX: String
-  def toHTML: String
-}
-
-trait ExprLike {
-  def toExpr: Expr
-}
-
-case class Context(vals: List[(String,Any)]) {
-  def apply(n: String) = vals.find(_._1 == n).getOrElse(throw EvalError("undefined variable: " + n))._2
-  def apply(v: (String,AnyVal)): Context = Context(v::vals)
-}
-object Context {
-  def apply(v: (String,Int)): Context = Context(List(v))
-}
-
-implicit class AnyToExpr(a: Any) {
-  def unary_! = Expr(a)
-}
-
-object Expr {
-  implicit def fromInt(i: Int): Term = DInt(i)
-  implicit def fromDobule(d: Double): Term = DDouble(d)
-  implicit def stringToId(s: String): Var = Var(s)
-  def !(a: Any) = apply(a)
-
-  def apply(a: Any) = fromAny(a)
-  def fromAnyO(a: Any): Option[Expr] = {
-    try {Some(fromAny(a))}
-    catch {case e: Exception => None}
-  }
-  def fromAny(a: Any): Term = a match {
-    case e: ExprLike => fromAny(e.toExpr)
-    case e: Term => e
-    case i: Int => DInt(i)
-    case s: String => DString(s)
-    case l: Seq[_] => FinSeq(l.map(fromAny)*)
-    case s: Set[_] => FinSet(s.toList.map(fromAny)*)
-    case t: Tuple2[_,_] => Tuple(t.productIterator.toList.map(fromAny)*)
-  }
-}
-
+/** common parent of all applications of constants/operators/connectives */
 sealed trait OperApply {
   def op: Oper
   def args: Seq[Expr]
-
   override def toString = {
     if (args.length <= 2) {
       args.mkString("(", " " + op + " ", ")")
@@ -75,18 +79,25 @@ sealed trait OperApply {
       op.toString + args.mkString("(", ",", ")")
     }
   }
+  def toSTeX = SMacroApplication(op.stexname, args.map(a => SPlainText(a.toSTeX)), op.flexary).toString
+  def toHTML = op.toHTML(args)
+  def fvs = args.flatMap(_.fvs)
+}
 
-  def toSTeX = op.sTeX(args.map(_.toSTeX))
+/** common parent of variables */
+sealed trait AnyVar {
+  val name: String
+  override def toString = name
+  def toSTeX = name
+  def toHTML = s"<mi>$name</mi>"
+  def fvs = List(name)
+}
 
-  def toHTML = op.toHTML(rendered(_.toHTML))
-
-  /** brackets a nested bare operator, so that Times(Plus(x,y),z) is not shown as x + y * z */
-  private def rendered(render: Expr => String): Seq[String] =
-    args.map {
-      case a: OperApply if op.bracketsChildren && op.htmlRule.isBare && a.op.htmlRule.isBare =>
-        "(" + render(a) + ")"
-      case a => render(a)
-    }
+/** common parent of literals */
+sealed trait AnyLit {
+  val value: Any
+  override def toString = value.toString
+  def fvs = Nil
 }
 
 /** formulas */
@@ -100,12 +111,12 @@ case class Pred(op: FOper, args: Seq[Term]) extends Form with OperApply {
     case _ => throw EvalError("not a chained operator")
   }
 }
-
 /** Boolean variables */
-case class BVar(name: String) extends Form {
-  override def toString = name
-  def toSTeX = name
-  def toHTML = s"<i>$name</i>"
+case class BVar(name: String) extends Form with AnyVar
+/** Boolean literals */
+case class BLit(value: Boolean) extends Form with AnyLit {
+  def toSTeX = if (value) "\\semtrue" else "\\semfalse"
+  def toHTML = s"<mo>${if (value) "true" else "false"}</mo>"
 }
 
 /** terms */
@@ -124,10 +135,41 @@ abstract class Term extends Expr {
 case class Apply(op: TOper, args: Seq[Term]) extends Term with OperApply
 
 /** application of a big (binding) operator to terms */
-case class BigApply(op: BigOper, conds: Seq[Form], body: Term) extends Term {
+case class BigApply(op: BigOper, bnds: List[String], conds: Seq[Form], body: Term) extends Term {
   def toSTeX = s"\\${op.stexname}_{${conds.map(_.toSTeX).mkString(",\\,")}}{${body.toSTeX}}"
-  def toHTML = s"${op.sym}<sub>${conds.map(_.toHTML).mkString(", ")}</sub>(${body.toHTML})"
+  def toHTML = s"<mrow><msub><mo>${op.sym}</mo><mrow>${Expr.toHTML(conds,",")}</mrow></msub>${body.toHTML}</mrow>"
+  def fvs = body.fvs.filterNot(bnds.contains)
 }
+
+/** reference to a named variable */
+case class Var(name: String) extends Term with AnyVar
+
+/** an integer literal */
+case class Lit(value: Any, domain: Domain) extends Term with AnyLit {
+  def toSTeX = toString
+  def asInt = if (domain == DInt) value.asInstanceOf[Int] else throw EvalError("value not an integer: " + this)
+  def toHTML = s"<mn>${value.toString}</mn>"
+}
+
+/** probability */
+case class Prob(of: Seq[Expr], conds: Seq[Expr]) extends Term {
+  def toSTeX = {
+    val ofS = of.map(_.toSTeX).mkString(",\\,")
+    val condsS = conds.map(_.toSTeX).mkString(",\\,")
+    val (name,args) = if (conds.isEmpty)
+      ("uProb", Seq(SPlainText(ofS)))
+    else
+      ("CondProb", Seq(SPlainText(ofS), SPlainText(condsS)))
+    SMacroApplication(name,args,false).toString
+  }
+  def toHTML = {
+    val condsH = if (conds.isEmpty) "" else "<mo>|</mo>" + Expr.toHTML(conds,",")
+    s"""<mrow><mo>P</mo><mo>(</mo>${Expr.toHTML(of,",")}$condsH<mo>)</mo></mrow>"""
+  }
+  /** TODO check */
+  def fvs = of.flatMap(_.fvs) ++ conds.flatMap(_.fvs)
+}
+
 
 object Name {
   private val symbols = Map(
@@ -143,32 +185,10 @@ object Name {
   }
 
   def html(s: String): String =
-    symbols.get(s).map(g => if (upright.contains(g)) s"<span class='sym'>$g</span>" else s"<i>$g</i>")
-      .orElse(unwrap(s, "mathtt").map(t => s"<span class='mathtt'>$t</span>"))
-      .orElse(unwrap(s, "mathrm"))
-      .getOrElse(s"<i>$s</i>")
-}
-
-/** reference to a named variable */
-case class Var(name: String) extends Term {
-  override def toString = name
-  def toSTeX = toString
-  def toHTML = Name.html(name)
-}
-/** an integer literal */
-case class Lit(value: Any, domain: Domain) extends Term {
-  override def toString = value.toString
-  def toSTeX = toString
-  def asInt = if (domain == DInt) value.asInstanceOf[Int]
-    else throw EvalError("value not an integer: " + this)
-
-  def toHTML = value match {
-    case inner: Lit => inner.toHTML
-    case _ => domain match {
-      case DString => Name.html(value.toString)
-      case _       => s"<span class='num'>${value.toString}</span>"
-    }
-  }
+    symbols.get(s).map(g => if (upright.contains(g)) s"<mo>$g</mo>" else s"<mi>$g</mi>")
+      .orElse(unwrap(s, "mathtt").map(t => s"""<mi mathvariant="mathtt">$t</mi>"""))
+      .orElse(unwrap(s, "mathrm")).map(t => s"""<mi mathvariant="mathrm">$t</mi>""")
+      .getOrElse(s"<mi>$s</mi>")
 }
 
 object NameLit {
@@ -177,40 +197,12 @@ object NameLit {
   def applyUpper(i: Int): Lit = DString((65+i).toChar.toString)
 }
 
-case class Prob(of: Seq[Expr], conds: Seq[Expr]) extends Term {
-  def toSTeX = {
-    val ofS = of.map(_.toSTeX).mkString(",\\,")
-    val condsS = conds.map(_.toSTeX).mkString(",\\,")
-    val (name,args) = if (conds.isEmpty)
-      ("uProb", Seq(SPlainText(ofS)))
-    else
-      ("CondProb", Seq(SPlainText(ofS), SPlainText(condsS)))
-    SMacroApplication(name,args,false).toString
-  }
-  def toHTML = {
-    val ofH = of.map(_.toHTML).mkString(", ")
-    if (conds.isEmpty) s"<i>P</i>($ofH)"
-    else s"<i>P</i>($ofH | ${conds.map(_.toHTML).mkString(", ")})"
-  }
-}
-
-abstract class HTMLRule {
-  def isBare: Boolean = false
-}
-/** `a + b`; the symbol is given bare, spacing is added when rendering */
-case class Infix(html: String) extends HTMLRule {
-  override def isBare = true
-}
-/** `¬a` */
-case class Prefix(html: String) extends HTMLRule {
-  override def isBare = true
-}
-/** `min(a, b)` */
+sealed abstract class HTMLRule
+case class Infix(name: String) extends HTMLRule
+case class Prefix(name: String) extends HTMLRule
+case class SpecialTag(tag: String) extends HTMLRule
 case class AppliedOperator(name: String) extends HTMLRule
-/** `{a, b}`, `(a, b)`, or just `a, b` with empty fences */
 case class FencedOperator(open: String, close: String) extends HTMLRule
-/** the operator overrides toHTML itself */
-case object CustomRule extends HTMLRule
 
 object HTMLRule {
   implicit def fromString(s: String): HTMLRule = Infix(s)
@@ -223,30 +215,29 @@ sealed abstract class Oper {
   def minArity: Option[Int] = None
   def maxArity: Option[Int] = None
 
-  def htmlRule: HTMLRule
-
-  /** whether nested bare operators among the arguments get brackets; see [OperApply] */
-  def bracketsChildren: Boolean = true
-
-  def sTeX(args: Seq[String]): String =
-    SMacroApplication(stexname, args.map(SPlainText(_)), flexary).toString
-
-  def toHTML(args: Seq[String]): String = htmlRule match {
-    case Infix(h)            => args.mkString(" " + h + " ")
-    case Prefix(h)           => h + args.mkString
-    case AppliedOperator(n)  => n + args.mkString("(", ", ", ")")
-    case FencedOperator(o,c) => o + args.mkString(", ") + c
-    case CustomRule          => throw EvalError("no HTML rendering for " + stexname)
+  def htmlRule: HTMLRule // may be null if toHTML is overridden
+  def toHTML(args: Seq[Expr]): String = {
+    htmlRule match {
+      case Infix(n) => s"<mrow>${Expr.toHTML(args, n)}</mrow>"
+      case Prefix(n) => s"<mrow><mo>$n</mo>${Expr.toHTML(args)}</mrow>"
+      case SpecialTag(t) => s"<$t>${Expr.toHTML(args)}</$t>"
+      case AppliedOperator(n) => s"<mrow><mo>$n</mo>${Expr.toHTML(args, ",", "(", ")")}</mrow>"
+      case FencedOperator(o,c) => s"<mrow>${Expr.toHTML(args, ",", o, c)}</mrow>"
+    }
   }
 }
 
 sealed abstract class BigOper(val stexname: String, val sym: String) {
-  def apply(conds: Form*)(body: Term) = BigApply(this, conds, body)
+  def apply(bnds: List[String])(conds: Form*)(body: Term): BigApply = {
+    BigApply(this, bnds, conds, body)
+  }
+  def apply(n: String, rng: Term)(body: Term): BigApply = {
+    this(List(n))(InSet(Var(n),rng))(body)
+  }
 }
 
 /** predicate symbols */
 sealed abstract class FOper(val stexname: String, val htmlRule: HTMLRule, val flexary: Boolean) extends Oper {
-  override def bracketsChildren = false
   def apply(args: Term*) = Pred(this, args.toList)
   def unapply(f: Form) = f match {
     case Pred(op,as) if op == this => Some(as)
@@ -255,9 +246,9 @@ sealed abstract class FOper(val stexname: String, val htmlRule: HTMLRule, val fl
 }
 
 /** function symbols */
-sealed abstract class TOper(val stexname: String, val htmlRule: HTMLRule, val flexary: Boolean, val arity: Option[Int]) extends Oper {
-  def this(stexname: String, htmlRule: HTMLRule, flexary: Boolean) =
-    this(stexname, htmlRule, flexary, None)
+sealed abstract class TOper(val stexname: String, val htmlRule: HTMLRule, val flexary: Boolean, val arity: Option[Int])
+  extends Oper {
+  def this(stexname: String, htmlRule: HTMLRule, flexary: Boolean) = this(stexname, htmlRule, flexary, None)
 
   def apply(args: Term*): Term = Apply(this, args.toList)
   def apply(args: List[Int]): Term = apply(args.map(DInt.apply)*)
@@ -271,7 +262,7 @@ sealed abstract class TOper(val stexname: String, val htmlRule: HTMLRule, val fl
 
 /** connectives */
 sealed abstract class COper(val stexname: String, val htmlRule: HTMLRule, val flexary: Boolean) extends Oper {
-  def apply(args: Form*) = Conn(this, args.toList)
+  def apply(args: Form*): Conn = Conn(this, args.toList)
   def unapply(f: Form) = f match {
     case Conn(op,as) if op == this => Some(as)
     case _ => None
@@ -323,29 +314,29 @@ object Tuple extends TOper("tup", FencedOperator("(",")"), true)
 object FinSeq extends TOper("seq", FencedOperator("",""), true)
 
 /* function symbols whose layout is more than a symbol between the arguments */
-object Divide extends TOper("realdivide", CustomRule, false) {
-  override def toHTML(a: Seq[String]) =
-    if (a.length >= 2) s"<span class='frac'><span>${a(0)}</span><span>${a(1)}</span></span>"
-    else a.mkString(" / ")
+object Divide extends TOper("realdivide", SpecialTag("mfrac"), false)
+object Exp extends TOper("intpower", SpecialTag("msup"), false, Some(2))
+object FunApply extends TOper("apply", null, true) {
+  override def toHTML(args: Seq[Expr]) = {
+    s"""<mrow>${args.head.toHTML}${Expr.toHTML(args.tail, "", "(", ")")}</mrow>"""
+  }
 }
-object Exp extends TOper("intpower", CustomRule, false, Some(2)) {
-  override def toHTML(a: Seq[String]) = s"${a(0)}<sup>${a(1)}</sup>"
-}
-object FunApply extends TOper("apply", CustomRule, true) {
-  override def sTeX(a: Seq[String]) = s"\\apply{${a.head}}{${a.tail.mkString(",")}}"
-  override def toHTML(a: Seq[String]) = s"${a.head}(${a.tail.mkString(", ")})"
-}
-object RangeSet extends TOper("range", CustomRule, false) {
-  override def toHTML(a: Seq[String]) = s"{${a(0)}, …, ${a(1)}}"
+object RangeSet extends TOper("range", null, false) {
+  override def toHTML(args: Seq[Expr]) =
+    s"""<mrow><mo>{</mo>${args(0).toHTML}<mo>,...,</mo>${args(1).toHTML}<mo>}</mo></mrow>"""
 }
 /** a path: a state, then alternating action and state, as produced by [[Path.toExpr]] */
-object TransitionChain extends TOper("transitions", CustomRule, true) {
-  override def toHTML(a: Seq[String]) =
-    a.head + a.tail.grouped(2).map {
-      case Seq(act, st) => s" →<sub>$act</sub> $st"
-      case Seq(st)      => s" → $st"
-      case _            => ""
-    }.mkString("")
+object TransitionChain extends TOper("transitions", null, true) {
+  override def toHTML(args: Seq[Expr]) = {
+    val argsH = args.map(_.toHTML)
+    var left = argsH.tail
+    var steps: List[String] = Nil
+    while (left.nonEmpty) {
+      steps ::= s"<mover>${left(0)}${left(1)}</mover>"
+      left = left.drop(2)
+    }
+    s"<mrow>${argsH(0)}<mover>${steps.reverse}</mrow>"
+  }
 }
 
 object Sum extends BigOper("sum", "Σ")
@@ -353,6 +344,18 @@ object Product extends BigOper("prod", "Π")
 object BigMax extends BigOper("max", "max")
 object BigArgMax extends BigOper("argmax", "argmax")
 object BigMin extends BigOper("min", "min")
+
+/** assigns values to free variables */
+case class Context(vals: List[(String,Expr)]) {
+  def apply(n: String) = vals.find(_._1 == n).getOrElse(throw EvalError("undefined variable: " + n))._2
+  def apply(v: (String,AnyVal)): Context = Context((v._1, Expr(v._2))::vals)
+  def declares(n: String) = vals.exists(_._1 == n)
+  override def toString = vals.map(v => v._1 + "=" + v._2.toString).mkString(", ")
+}
+object Context {
+  def apply(): Context = Context(Nil)
+  def apply(v: (String,Int)): Context = Context()(v)
+}
 
 case class EvalError(m: String) extends Exception(m)
 
@@ -369,12 +372,12 @@ case class EvalError(m: String) extends Exception(m)
   * to compute F(3,5).
   */
 object Evaluator {
-
   /** evaluates formulas to Booleans */
   def apply(f: Form)(implicit ctx: Context): Boolean = f match {
+    case BLit(v) => v
     case BVar(n) => ctx(n) match {
-      case v: Boolean => v
-      case v => throw EvalError("variable not Boolean: " + n + "=" + v)
+      case v: Form => apply(v)
+      case v => throw EvalError("variable not a formula: " + n + "=" + v)
     }
     case Pred(op: ChainedFOper, as) => as match {
         case Nil => true
@@ -414,9 +417,8 @@ object Evaluator {
   def apply(t: Term)(implicit ctx: Context): Lit = t match {
     case l:Lit => l
     case Var(n) => ctx(n) match {
-      case v: Int => DInt(v)
-      case l: Lit => l
-      case v => throw EvalError("variable not integer: " + n + "=" + v)
+      case t: Term => apply(t)
+      case v => throw EvalError("variable not a term: " + n + "=" + v)
     }
     case Apply(op, fs) =>
       val fsE = fs.map(a => apply(a).asInt)

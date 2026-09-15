@@ -1,41 +1,6 @@
 package info.kwarc.probgen
 
-// ---------------------------------------------------------------------------
-// Helper: converts a LaTeX math string (content between $ $) to HTML
-// ---------------------------------------------------------------------------
-object MathHTML {
-  // Convert a single LaTeX token to HTML
-  def token(s: String): String = s.trim match {
-    case "\\gamma"  => "<i>γ</i>"
-    case "\\pi"     => "<i>π</i>"
-    case "\\to"     => "<span class='sym'>→</span>"
-    case "\\times"  => "<span class='sym'>×</span>"
-    case "\\cdot"   => "<span class='sym'>·</span>"
-    case "\\infty"  => "<span class='sym'>∞</span>"
-    case "\\hline"  => ""
-    case "\\leq"    => "≤"
-    case "\\geq"    => "≥"
-    case "\\neq"    => "≠"
-    case "\\in"     => "∈"
-    case cmd if cmd.startsWith("\\mathtt{") && cmd.endsWith("}") =>
-      s"<span class='mathtt'>${cmd.stripPrefix("\\mathtt{").stripSuffix("}")}</span>"
-    case cmd if cmd.startsWith("\\mathrm{") && cmd.endsWith("}") =>
-      cmd.stripPrefix("\\mathrm{").stripSuffix("}")
-    case t => t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-  }
-
-  // Convert a LaTeX math string (possibly compound like "4 \times 3") to HTML.
-  // Splits on whitespace and maps each token, then joins.
-  def apply(s: String): String = {
-    val parts = s.trim.split("\\s+")
-    if (parts.length <= 1) token(s.trim)
-    else parts.map(p => token(p.trim)).mkString(" ")
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Root trait
-// ---------------------------------------------------------------------------
+/** common parent of all renderable syntax */
 trait STeXSyntax {
   def toHTML: String
 }
@@ -58,9 +23,6 @@ abstract class SEnvironment(name: String, level: Int = 0) extends STeXSyntax {
   def toHTML: String = body.map(_.toHTML).mkString("\n")
 }
 
-// ---------------------------------------------------------------------------
-// Document structure
-// ---------------------------------------------------------------------------
 case class SDocument(body: List[SFragment]) extends SEnvironment("document", 4) {
   def toStringFull =
     """\documentclass{article}
@@ -105,9 +67,6 @@ case class SSolution(testspace: Float, body: List[SText]) extends SEnvironment("
   override def toHTML: String = body.map(_.toHTML).mkString(" ")
 }
 
-// ---------------------------------------------------------------------------
-// Lists
-// ---------------------------------------------------------------------------
 abstract class SList(n: String, items: List[SText]) extends SEnvironment(n) {
   def body = items.map(SItem(_))
 }
@@ -128,15 +87,8 @@ case class SCenter(body: Seq[STeXSyntax]) extends SEnvironment("center") {
     s"<div style='text-align:center'>${body.map(_.toHTML).mkString("")}</div>"
 }
 
-// ---------------------------------------------------------------------------
-// Table
-// ---------------------------------------------------------------------------
-case class STabular(
-                     cellHead: SText,
-                     columnHeads: Seq[SText],
-                     rowHeads: Seq[SText],
-                     cells: Seq[(Int, Int, SText)]
-                   ) extends SEnvironment("tabular") {
+case class STabular(cellHead: SText, columnHeads: Seq[SText],rowHeads: Seq[SText],cells: Seq[(Int, Int, SText)])
+  extends SEnvironment("tabular") {
   def makeRow(cs: Seq[SText]): SText =
     SSnippet(cs.head +: cs.tail.flatMap(s => Seq(SText(" & "), s)) :+ SText("\\\\"))
   override def args = List("l|" + ("c" * columnHeads.length))
@@ -165,138 +117,27 @@ case class STabular(
   }
 }
 
-// ---------------------------------------------------------------------------
-// SText trait
-// ---------------------------------------------------------------------------
 trait SText extends STeXSyntax {
   def ++(more: Seq[STeXSyntax]): SText = SSnippet(this +: more)
   def +(more: STeXSyntax): SText = if (more == null) this else SSnippet(List(this, more))
 }
 
-// ---------------------------------------------------------------------------
-// SMath: wraps an Expr, renders as a span.math
-// ---------------------------------------------------------------------------
 case class SMath(expr: Expr) extends SText {
   override def toString = "$" + expr.toSTeX + "$"
-  override def toHTML: String = s"""<span class="math">${expr.toHTML}</span>"""
+  override def toHTML: String = s"<math>${expr.toHTML}</math>"
 }
 
-// ---------------------------------------------------------------------------
-// SSnippet: sequence of nodes, merges adjacent math into one span.math
-// ---------------------------------------------------------------------------
 case class SSnippet(body: Seq[STeXSyntax], sep: String = "") extends SText {
-  override def toString = body.map(_.toString).mkString(sep)
-  override def toHTML: String = {
-    val sb      = new StringBuilder
-    val mathBuf = new StringBuilder
-
-    def flushMath(): Unit =
-      if (mathBuf.nonEmpty) {
-        sb.append(s"""<span class="math">${mathBuf.toString()}</span>""")
-        mathBuf.clear()
-      }
-
-    body.foreach {
-      case m: SMath =>
-        mathBuf.append(m.expr.toHTML)
-      case p: SPlainText =>
-        val t = p.body.trim
-        if (t.startsWith("$") && t.endsWith("$") && t.length > 2 && !t.drop(1).dropRight(1).contains("$")) {
-          // Pure §X§ math node — merge into math buffer
-          mathBuf.append(MathHTML(t.drop(1).dropRight(1)))
-        } else {
-          flushMath()
-          val html = p.toHTML
-          // Add a space when a non-empty text follows non-empty previous content
-          // and neither side already has a boundary space
-          if (html.nonEmpty && sb.nonEmpty) {
-            val lastChar  = sb.last
-            val firstChar = html.head
-            val needSpace = lastChar != ' ' && firstChar != ' ' &&
-              firstChar != '.' && firstChar != ',' && firstChar != ')' &&
-              firstChar != ']' && firstChar != '!' && lastChar != '('
-            if (needSpace) sb.append(" ")
-          }
-          sb.append(html)
-        }
-      case other =>
-        flushMath()
-        sb.append(other.toHTML)
-    }
-    flushMath()
-    sb.toString()
-  }
-  def +(rest: SSnippet): SSnippet = copy(body = this.body ++ rest.body)
+  override def toString = body.mkString(sep)
+  def toHTML = body.map(_.toHTML).mkString(sep)
+  def +(rest: SSnippet) = copy(body = this.body++rest.body)
 }
 
-// ---------------------------------------------------------------------------
-// SPlainText
-// ---------------------------------------------------------------------------
 case class SPlainText(body: String) extends SText {
   override def toString = body
-  override def toHTML: String = {
-    val parts = body.split("\\$", -1)
-    if (parts.length == 1) {
-      plainToHTML(body)
-    } else {
-      val sb = new StringBuilder
-      val mb = new StringBuilder
-      def flushM(): Unit =
-        if (mb.nonEmpty) {
-          sb.append(s"""<span class="math">${mb.toString()}</span>""")
-          mb.clear()
-        }
-      parts.zipWithIndex.foreach { case (part, i) =>
-        if (i % 2 == 0) {
-          if (part.nonEmpty) {
-            flushM()
-            // Add a space before plain text that follows a math span,
-            // unless the text already starts with a space or punctuation
-            val needsSpace = sb.nonEmpty && !part.startsWith(" ") &&
-              !part.startsWith(".") && !part.startsWith(",") &&
-              !part.startsWith(")") && !part.startsWith("]") &&
-              !part.startsWith("!")
-            if (needsSpace) sb.append(" ")
-            sb.append(plainToHTML(part))
-          }
-        } else {
-          mb.append(MathHTML(part))
-        }
-      }
-      flushM()
-      sb.toString()
-    }
-  }
-
-  private def plainToHTML(s: String): String = {
-    val t = s.trim
-    // If the whole segment is a single LaTeX command, render as inline math
-    if (t.startsWith("\\")) {
-      val mathHtml = MathHTML.token(t)
-      if (mathHtml != t) return s"""<span class="math">$mathHtml</span>"""
-    }
-    t match {
-      case cmd if cmd.startsWith("\\mathtt{") && cmd.endsWith("}") =>
-        s"""<span class="math"><span class="mathtt">${cmd.stripPrefix("\\mathtt{").stripSuffix("}")}</span></span>"""
-      case cmd if cmd.startsWith("\\mathrm{") && cmd.endsWith("}") =>
-        s"""<span class="math">${cmd.stripPrefix("\\mathrm{").stripSuffix("}")}</span>"""
-      case _ =>
-        // Check if the trimmed text contains only LaTeX tokens (all words start with \)
-        // e.g. " 	imes " — render entirely as math
-        val words = t.split("\\s+").filter(_.nonEmpty)
-        if (words.nonEmpty && words.forall(w => w.startsWith("\\") || w.matches("-?\\d+(\\.\\d+)?"))) {
-          val mathContent = words.map(w => MathHTML.token(w)).mkString(" ")
-          s"""<span class="math">$mathContent</span>"""
-        } else {
-          s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-        }
-    }
-  }
+  def toHTML = body
 }
 
-// ---------------------------------------------------------------------------
-// SMacroApplication
-// ---------------------------------------------------------------------------
 case class SMacroApplication(name: String, args: Seq[SText], flexary: Boolean) extends SText {
   override def toString = {
     val argsX = args.map(_.toString)
@@ -304,24 +145,14 @@ case class SMacroApplication(name: String, args: Seq[SText], flexary: Boolean) e
     else argsX.map(s => s"{$s}").mkString("")
     s"\\$name$argsS"
   }
-  override def toHTML: String = {
-    val a = args.map(_.toHTML)
-    name match {
-      case "uProb"    => s"""<span class="math"><i>P</i>(${a.mkString("")})</span>"""
-      case "CondProb" =>
-        s"""<span class="math"><i>P</i>(${a.headOption.getOrElse("")}|${a.drop(1).mkString("")})</span>"""
-      case _ => toString
-    }
-  }
+  def toHTML = "" // only allowed for invisible content
 }
 
-class SMacro(name: String) {
+case class SMacro(name: String) {
   def apply(args: SText*) = SMacroApplication(name, args.toList, false)
 }
 
-// ---------------------------------------------------------------------------
-// String interpolation
-// ---------------------------------------------------------------------------
+/** String interpolation */
 object SText {
   implicit class STextInterpolator(sc: StringContext) {
     def x(args: Any*): SText = {
@@ -330,11 +161,11 @@ object SText {
       }
       var snippets: List[STeXSyntax] = List(partsS.head)
       partsS = partsS.tail
-      args.toList.foreach { arg =>
+      args.toList.foreach {arg =>
         val argS: STeXSyntax = arg match {
           case t: STeXSyntax => t
           case s: String     => SPlainText(s)
-          case f: Form       => SMath(f)
+          case e: Expr       => SMath(e)
           case a => Expr.fromAnyO(a) match {
             case Some(e) => SMath(e)
             case None    => SPlainText(a.toString)

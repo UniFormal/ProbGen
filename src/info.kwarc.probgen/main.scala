@@ -9,9 +9,7 @@ import org.scalajs.dom.html
 import scala.scalajs.js.annotation.JSExportTopLevel
 
 object main {
-
   private val subproblemMap = scala.collection.mutable.Map[String, Problem[?]#Subproblem]()
-
   /** the sheet shown on the page; Export .tex exports this, so both always match */
   var currentSheet: Option[SDocument] = None
 

@@ -24,7 +24,7 @@ class BasicProbability(val domainSizes: List[Int]) {
     val j = e.zipWithIndex.map {case (v,i) => v*domainSizes.drop(i+1).product}.sum
     eventNames(j)
   }
-  def eventSum(es: List[Event]) = Plus(es.map(e => DString(eventName(e)))*)
+  def eventSum(es: List[Event]) = Plus(es.map(e => eventName(e))*)
   def valid = numVars + numEvents <= 26
 
   // -- plain-string views of the event names, for answer checking -------------
@@ -42,7 +42,7 @@ class BasicProbability(val domainSizes: List[Int]) {
   }
 
   def eval(form: Form, ev: Event) = {
-    Evaluator(form)(using Context(varNames.zip(ev)))
+    Evaluator(form)(using Context(varNames.zip(ev.map(DInt(_)))))
   }
   // f must be an expression using the variables
   // P(f) in terms of event names
