@@ -211,7 +211,7 @@ object HTMLRule {
 sealed abstract class Oper {
   def stexname: String
   override def toString = stexname
-  def flexary: Boolean
+  def flexary: Int
   def minArity: Option[Int] = None
   def maxArity: Option[Int] = None
 
@@ -261,7 +261,7 @@ sealed abstract class TOper(val stexname: String, val htmlRule: HTMLRule, val fl
 }
 
 /** connectives */
-sealed abstract class COper(val stexname: String, val htmlRule: HTMLRule, val flexary: Boolean) extends Oper {
+sealed abstract class COper(val stexname: String, val htmlRule: HTMLRule, val flexary: Int) extends Oper {
   def apply(args: Form*): Conn = Conn(this, args.toList)
   def unapply(f: Form) = f match {
     case Conn(op,as) if op == this => Some(as)
@@ -283,50 +283,50 @@ object TOper {
 sealed abstract class ChainedFOper(s: String, r: HTMLRule, f: Boolean) extends FOper(s,r,f)
 
 /* connectives */
-object And extends COper("lconj", Infix("∧"), true)
-object Or extends COper("ldisj", Infix("∨"), true)
-object Implies extends COper("limpl", Infix("⇒"), false)
-object Neg extends COper("lneg", Prefix("¬"), true)
+object And extends COper("lconj", Infix("∧"), 0)
+object Or extends COper("ldisj", Infix("∨"), 0)
+object Implies extends COper("limpl", Infix("⇒"), -1)
+object Neg extends COper("lneg", Prefix("¬"), 0)
 
 /* predicate symbols */
-object Equals extends ChainedFOper("eq", "=", true)
-object NotEquals extends FOper("notequal", Infix("≠"), false)
-object Less extends ChainedFOper("intlessthan", Infix("&lt;"), false)
-object LessEq extends ChainedFOper("intlethan", Infix("≤"), false)
-object Divides extends ChainedFOper("intdivisible", "|", false)
-object InSet extends FOper("inset", Infix("∈"), false)
+object Equals extends ChainedFOper("eq", "=", 0)
+object NotEquals extends FOper("notequal", Infix("≠"), -1)
+object Less extends ChainedFOper("intlessthan", Infix("&lt;"), -1)
+object LessEq extends ChainedFOper("intlethan", Infix("≤"), -1)
+object Divides extends ChainedFOper("intdivisible", "|", -1)
+object InSet extends FOper("inset", Infix("∈"), -1)
 
 /* function symbols */
-object Plus extends TOper("intplus", "+", true)
-object Minus extends TOper("intminus", Infix("−"), true, Some(2))
-object Times extends TOper("inttimes", Infix("·"), true)
-object Mod extends TOper("intmod", "mod", false, Some(2))
-object Min extends TOper("intmin", AppliedOperator("min"), true) {
+object Plus extends TOper("intplus", "+", 0)
+object Minus extends TOper("intminus", Infix("−"), 0, Some(2))
+object Times extends TOper("inttimes", Infix("·"), 0)
+object Mod extends TOper("intmod", "mod", -1, Some(2))
+object Min extends TOper("intmin", AppliedOperator("min"), 0) {
   override def minArity = Some(2)
 }
-object Max extends TOper("intmax", AppliedOperator("max"), true) {
+object Max extends TOper("intmax", AppliedOperator("max"), 0) {
   override def minArity = Some(2)
 }
 
-object Cart extends TOper("cart", Infix("×"), true)
-object FinSet extends TOper("set", FencedOperator("{","}"), true)
-object Tuple extends TOper("tup", FencedOperator("(",")"), true)
-object FinSeq extends TOper("seq", FencedOperator("",""), true)
+object Cart extends TOper("cart", Infix("×"), 0)
+object FinSet extends TOper("set", FencedOperator("{","}"), 0)
+object Tuple extends TOper("tup", FencedOperator("(",")"), 0)
+object FinSeq extends TOper("seq", FencedOperator("",""), 0)
 
 /* function symbols whose layout is more than a symbol between the arguments */
-object Divide extends TOper("realdivide", SpecialTag("mfrac"), false)
-object Exp extends TOper("intpower", SpecialTag("msup"), false, Some(2))
-object FunApply extends TOper("apply", null, true) {
+object Divide extends TOper("realdivide", SpecialTag("mfrac"), -1)
+object Exp extends TOper("intpower", SpecialTag("msup"), -1, Some(2))
+object FunApply extends TOper("apply", null, 1) {
   override def toHTML(args: Seq[Expr]) = {
     s"""<mrow>${args.head.toHTML}${Expr.toHTML(args.tail, "", "(", ")")}</mrow>"""
   }
 }
-object RangeSet extends TOper("range", null, false) {
+object RangeSet extends TOper("range", null, -1) {
   override def toHTML(args: Seq[Expr]) =
     s"""<mrow><mo>{</mo>${args(0).toHTML}<mo>,...,</mo>${args(1).toHTML}<mo>}</mo></mrow>"""
 }
 /** a path: a state, then alternating action and state, as produced by [[Path.toExpr]] */
-object TransitionChain extends TOper("transitions", null, true) {
+object TransitionChain extends TOper("transitions", null, 0) {
   override def toHTML(args: Seq[Expr]) = {
     val argsH = args.map(_.toHTML)
     var left = argsH.tail

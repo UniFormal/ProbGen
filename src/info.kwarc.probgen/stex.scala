@@ -138,12 +138,14 @@ case class SPlainText(body: String) extends SText {
   def toHTML = body
 }
 
-case class SMacroApplication(name: String, args: Seq[SText], flexary: Boolean) extends SText {
+/** @param singleArgsNum == i ---> 0: {a_1}...{a_i}{a_i+1, ..., a_n}; i=-1 is like i=n*/
+case class SMacroApplication(name: String, args: Seq[SText], singleArgsNum: Int) extends SText {
   override def toString = {
     val argsX = args.map(_.toString)
-    val argsS = if (flexary) argsX.mkString("{", ",", "}")
-    else argsX.map(s => s"{$s}").mkString("")
-    s"\\$name$argsS"
+    val (singleArgs,seqArgs) = if (singleArgsNum == -1) (argsX,Nil) else argsX.splitAt(singleArgsNum)
+    val singleArgsS = if (singleArgs.isEmpty) "" else singleArgs.map(s => s"{$s}").mkString("")
+    val seqArgsS = if (seqArgs.isEmpty) "" else seqArgsX.mkString("{", ",", "}")
+    s"\\$name$singleArgsS$seqArgsS"
   }
   def toHTML = "" // only allowed for invisible content
 }
