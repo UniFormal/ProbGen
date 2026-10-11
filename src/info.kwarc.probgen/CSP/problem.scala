@@ -15,7 +15,7 @@ case class CSPProblem(csp: CSP, assignedVar: String, assignedVal: Int) extends P
     val constraintsList = SItemize(csp.constraints.map(c => x"${c}")*)
 
     SSnippet(List(
-      x"Consider the following constraint network ${Tuple(Var("V"),Var("D"), Var("C")}:",
+      x"Consider the following constraint network ${Tuple(Var("V"),Var("D"), Var("C"))}:",
       SItemize(
         x"Variables ${Var("V")}: \\{$varsList\\}§",
         x"Domains §$domainsList§",

@@ -2,6 +2,7 @@ package info.kwarc.probgen
 
 import SText._
 import Expr._
+import scala.compiletime.uninitialized
 
 case class MDPProblem(mdp: MDP,isPolIter: Boolean) extends Problem[MDPProblem] {
   def round(d: Double): String = {
@@ -62,7 +63,10 @@ case class MDPProblem(mdp: MDP,isPolIter: Boolean) extends Problem[MDPProblem] {
   // 4. CALCULATION (VI)
   object calcOneStepVI extends Subproblem("calc", 3, 4) {
     override def applicable() = !isPolIter
-    val s = Generator.choose(mdp.states.filterNot(mdp.isTerminal))
+    var s: mdp.S = uninitialized
+    override def init() = {
+      s = Generator.choose(mdp.states.filterNot(mdp.isTerminal))
+    }
     def question() = x"Assume current utilities ${U("s") === 0} for all states. Perform one value iteration step to calculate ${U(!s)}."
     def solution() = {
       val res = round(mdp.reward(s))
@@ -73,7 +77,10 @@ case class MDPProblem(mdp: MDP,isPolIter: Boolean) extends Problem[MDPProblem] {
   // 5. CALCULATION (PI)
   object calcOneStepPI extends Subproblem("calc", 3, 4) {
     override def applicable() = isPolIter
-    val s = Generator.choose(mdp.states.filterNot(mdp.isTerminal))
+    var s: mdp.S = uninitialized
+    override def init() = {
+      s = Generator.choose(mdp.states.filterNot(mdp.isTerminal))
+    }
 
     def question() = {
       val a = mdp.actionName(mdp.actions.head)
@@ -88,9 +95,8 @@ case class MDPProblem(mdp: MDP,isPolIter: Boolean) extends Problem[MDPProblem] {
   // 6. POLICY IMPROVEMENT / EXTRACTION
   object policyImprovement extends Subproblem("calc", 3, 4) {
     // Applicable in PI (step 2) OR VI (final step)
-    override def applicable() = true 
-    val s = Generator.choose(mdp.states.filterNot(mdp.isTerminal))
-    
+    override def applicable() = true
+
     def question() = x"Suppose we solved the utilities as ${U("s")} for every state §s§. How do we derive the optimal policy?"
     def solution() = {
       x"Calculate the utilities for all actions and pick the max: ${"\\pi"("s") === BigArgMax("s'","S")(Prob(Seq("s'"),Seq("s", "a")) * U("s'"))}."
@@ -100,12 +106,20 @@ case class MDPProblem(mdp: MDP,isPolIter: Boolean) extends Problem[MDPProblem] {
   // 7. PATH PROBABILITY
   object sequenceProbability extends Subproblem("calc", 2, 3) {
     val s0 = mdp.initial
-    val a0 = Generator.choose(mdp.actions)
-    val dist0 = mdp.trans(s0, a0)
-    val s1 = dist0.keys.headOption.getOrElse(s0) 
-    val a1 = Generator.choose(mdp.actions)
-    val dist1 = mdp.trans(s1, a1)
-    val s2 = dist1.keys.headOption.getOrElse(s1)
+    var a0: mdp.A = uninitialized
+    var dist0: mdp.BeliefState = Map.empty
+    var s1: mdp.S = uninitialized
+    var a1: mdp.A = uninitialized
+    var dist1: mdp.BeliefState = Map.empty
+    var s2: mdp.S = uninitialized
+    override def init() = {
+      a0 = Generator.choose(mdp.actions)
+      dist0 = mdp.trans(s0, a0)
+      s1 = dist0.keys.headOption.getOrElse(s0)
+      a1 = Generator.choose(mdp.actions)
+      dist1 = mdp.trans(s1, a1)
+      s2 = dist1.keys.headOption.getOrElse(s1)
+    }
 
     def question() = x"Calculate the probability of the agent moving along to $s1 and then to $s2 "
     + x"by taking the actions ${mdp.actionName(a0)} and ${mdp.actionName(a1)}."
@@ -123,7 +137,10 @@ case class MDPProblem(mdp: MDP,isPolIter: Boolean) extends Problem[MDPProblem] {
     val sA = mdp.initial
     val others = mdp.states.filter(_ != sA)
     val sB = if (others.nonEmpty) others.head else sA
-    val a = Generator.choose(mdp.actions)
+    var a: mdp.A = uninitialized
+    override def init() = {
+      a = Generator.choose(mdp.actions)
+    }
 
     def question() = x"Now assume we use the corresponding POMDP with current belief state ${"b"(!sA) === 0.5}, ${"b"(!sB) === 0.5} and apply action ${"a" === !a}." +
       x" Calculate the new belief state."

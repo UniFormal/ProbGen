@@ -26,6 +26,7 @@ object Expr {
     case e: Term => e
     case e: ExprLike => e.toExpr
     case i: Int => DInt(i)
+    case d: Double => DDouble(d)
     case s: String => DString(s)
     case l: Seq[_] => FinSeq(l.map(fromAny)*)
     case s: Set[_] => FinSet(s.toList.map(fromAny)*)
@@ -160,7 +161,7 @@ case class Prob(of: Seq[Expr], conds: Seq[Expr]) extends Term {
       ("uProb", Seq(SPlainText(ofS)))
     else
       ("CondProb", Seq(SPlainText(ofS), SPlainText(condsS)))
-    SMacroApplication(name,args,false).toString
+    SMacroApplication(name,args,-1).toString
   }
   def toHTML = {
     val condsH = if (conds.isEmpty) "" else "<mo>|</mo>" + Expr.toHTML(conds,",")
@@ -237,7 +238,7 @@ sealed abstract class BigOper(val stexname: String, val sym: String) {
 }
 
 /** predicate symbols */
-sealed abstract class FOper(val stexname: String, val htmlRule: HTMLRule, val flexary: Boolean) extends Oper {
+sealed abstract class FOper(val stexname: String, val htmlRule: HTMLRule, val flexary: Int) extends Oper {
   def apply(args: Term*) = Pred(this, args.toList)
   def unapply(f: Form) = f match {
     case Pred(op,as) if op == this => Some(as)
@@ -246,9 +247,9 @@ sealed abstract class FOper(val stexname: String, val htmlRule: HTMLRule, val fl
 }
 
 /** function symbols */
-sealed abstract class TOper(val stexname: String, val htmlRule: HTMLRule, val flexary: Boolean, val arity: Option[Int])
+sealed abstract class TOper(val stexname: String, val htmlRule: HTMLRule, val flexary: Int, val arity: Option[Int])
   extends Oper {
-  def this(stexname: String, htmlRule: HTMLRule, flexary: Boolean) = this(stexname, htmlRule, flexary, None)
+  def this(stexname: String, htmlRule: HTMLRule, flexary: Int) = this(stexname, htmlRule, flexary, None)
 
   def apply(args: Term*): Term = Apply(this, args.toList)
   def apply(args: List[Int]): Term = apply(args.map(DInt.apply)*)
@@ -280,7 +281,7 @@ object TOper {
 
 /* individual predicate symbols, function symbols, connectives, etc. */
 
-sealed abstract class ChainedFOper(s: String, r: HTMLRule, f: Boolean) extends FOper(s,r,f)
+sealed abstract class ChainedFOper(s: String, r: HTMLRule, f: Int) extends FOper(s,r,f)
 
 /* connectives */
 object And extends COper("lconj", Infix("∧"), 0)

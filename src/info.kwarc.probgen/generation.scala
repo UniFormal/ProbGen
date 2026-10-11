@@ -33,7 +33,13 @@ object Generator {
   }
   /** choose some values from a list */
   def chooseSome[A](options: List[A], atLeast: Int, atMost: Int, allowRep: Boolean) = {
-    val num = choose(Range(atLeast,atMost+1).toList)
+    require(options.nonEmpty, "chooseSome needs at least one option")
+    require(atLeast <= atMost, "atLeast must be <= atMost")
+    if (!allowRep) {
+      require(atMost <= options.length, "cannot choose more unique elements than options")
+    }
+
+    val num = choose(Range(atLeast, atMost + 1).toList)
     var choices: List[A] = Nil
     while (choices.length < num) {
       val c = choose(options)

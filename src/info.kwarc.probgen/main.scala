@@ -30,7 +30,13 @@ object main {
     dom.window.requestAnimationFrame { _ =>
       dom.window.setTimeout(() => {
         try {
-          val fragments = Problems.all().map { case (title, p) => buildFragment(title, p) }
+          val fragments = Problems.all().map { case (title, p) =>
+            try buildFragment(title, p)
+            catch { case e: Throwable =>
+              e.printStackTrace()
+              SFragment(title, List(SProblem(SText(s"<pre style='color:red'>${Html.esc(e.toString)}</pre>"), Nil)))
+            }
+          }
           currentSheet = Some(SDocument(fragments))
           container.innerHTML = fragments.map(renderFragment).mkString
         } catch {
@@ -61,20 +67,13 @@ object main {
   def checkAnswer(id: String): Unit = {
     val inputEl = document.getElementById(s"ans-$id").asInstanceOf[html.Input]
     val fbEl    = document.getElementById(s"fb-$id").asInstanceOf[html.Element]
-    val userAns = inputEl.value.trim
-
-    if (userAns.isEmpty) {
-      showFeedback(fbEl, "error", "Please enter an answer first.")
-      showFlash(fbEl)
-      return
-    }
 
     subproblemMap.get(id) match {
       case None =>
         showFeedback(fbEl, "error", "Problem not found — try generating new problems.")
       case Some(sub) =>
         // (see answers.scala) the result knows how to present itself, so adding a new kind of result never requires a change here [This is submoptimal, but it works for now]
-        val res = sub.checkSolution(userAns)
+        val res = sub.check(inputEl.value)
         inputEl.style.borderColor = res.borderColor
         showFeedback(fbEl, res.cssClass, res.messageHtml(sub.pts))
     }

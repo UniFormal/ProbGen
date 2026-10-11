@@ -144,14 +144,14 @@ case class SMacroApplication(name: String, args: Seq[SText], singleArgsNum: Int)
     val argsX = args.map(_.toString)
     val (singleArgs,seqArgs) = if (singleArgsNum == -1) (argsX,Nil) else argsX.splitAt(singleArgsNum)
     val singleArgsS = if (singleArgs.isEmpty) "" else singleArgs.map(s => s"{$s}").mkString("")
-    val seqArgsS = if (seqArgs.isEmpty) "" else seqArgsX.mkString("{", ",", "}")
+    val seqArgsS = if (seqArgs.isEmpty) "" else seqArgs.mkString("{", ",", "}")
     s"\\$name$singleArgsS$seqArgsS"
   }
   def toHTML = "" // only allowed for invisible content
 }
 
 case class SMacro(name: String) {
-  def apply(args: SText*) = SMacroApplication(name, args.toList, false)
+  def apply(args: SText*) = SMacroApplication(name, args.toList, -1)
 }
 
 /** String interpolation */

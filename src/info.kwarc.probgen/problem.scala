@@ -27,42 +27,38 @@ trait Problem[PD <: Problem[PD]] {
     def solution(): SText
 
     /**
-      * Override to have this subproblem graded automatically. See answers.scala
-      * for the available graders. This is a `def`, not a `val`, so that it is
-      * evaluated after `init()` has bound the subproblem's random choices.
-      */
+      * Override to have this subproblem graded automatically. See answers.scala for the available graders. 
+    */
     def grader: Option[Grader] = None
 
     /**
-      * Override to attach a grading scheme to a question that cannot be graded
-      * automatically. Used both for human marking of the printed sheet and for
-      * self-assessment in the browser.
+      * Override to attach a grading scheme to a question that cannot be graded automatically.
       */
     def rubric: Option[AnswerRubric] = None
 
     /**
-      * Checking order: an explicit grader wins, then a rubric, and otherwise the
-      * question is simply reported as not auto-graded. Subclasses may override
-      * this method directly for fully bespoke checking.
-      *
-      * There is deliberately no string comparison here. Comparing what a student
-      * typed against the *rendered* solution is not a semantic check: it fails on
-      * any difference of spacing, ordering or notation, so it was reporting wrong
-      * answers as often as right ones. A subproblem is graded when it says how,
-      * via `grader` (see answers.scala) or `rubric`, and otherwise it is honest
-      * about not being graded yet.
+      * The entry point for grading an answer; callers use this, not `checkSolution`.
+      * It handles what every question has in common and then delegates. It is
+      * `final`, so subproblems that override `checkSolution` cannot skip it.
+      */
+    final def check(input: String): CheckResult = {
+      val trimmed = input.trim
+      if (trimmed.isEmpty) MalformedInput("Please enter an answer first.")
+      else checkSolution(trimmed)
+    }
+
+    /**
+      * A subproblem is graded when it says how, via `grader` (see answers.scala) or `rubric`, and otherwise question is simply reported as not auto-graded.
       */
     def checkSolution(input: String): CheckResult =
-      if (input.trim.isEmpty) MalformedInput("Please enter an answer first.")
-      else
-        grader match {
-          case Some(g) => g.grade(input)
-          case None =>
-            rubric match {
-              case Some(r) => RubricGrader(() => solution().toHTML, r).grade(input)
-              case None    => NotCheckable(solution().toHTML)
-            }
-        }
+      grader match {
+        case Some(g) => g.grade(input)
+        case None =>
+          rubric match {
+            case Some(r) => RubricGrader(() => solution().toHTML, r).grade(input)
+            case None    => NotCheckable(solution().toHTML)
+          }
+      }
 
     /** points actually earned, rounded to the nearest half point */
     def awardedPoints(r: CheckResult): Double = Scoring.roundHalf(r.fraction * pts)
@@ -76,7 +72,7 @@ trait Problem[PD <: Problem[PD]] {
   }
 
   case class GroupConstraint(atLeast: Int, atMost: Int, choices: Subproblem*) {
-    groupConstraints ::= this
+    groupConstraints = groupConstraints :+ this
     val length = choices.length
   }
 
