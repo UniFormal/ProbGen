@@ -36,7 +36,8 @@ object Expr {
   def toHTML(es: Seq[Expr], sep: String = "", open: String = "", close: String = "") = {
     val oS = if (open.isEmpty) "" else s"<mo>$open</mo>"
     val cS = if (close.isEmpty) "" else s"<mo>$close</mo>"
-    es.map(_.toHTML).mkString(oS, s"<mo>$sep</mo>", cS)
+    val sS = if (sep.isEmpty) "" else s"<mo>$sep</mo>"
+    es.map(_.toHTML).mkString(oS, sS, cS)
   }
 }
 
@@ -90,7 +91,7 @@ sealed trait AnyVar {
   val name: String
   override def toString = name
   def toSTeX = name
-  def toHTML = s"<mi>$name</mi>"
+  def toHTML = Name.html(name)
   def fvs = List(name)
 }
 
@@ -117,7 +118,7 @@ case class BVar(name: String) extends Form with AnyVar
 /** Boolean literals */
 case class BLit(value: Boolean) extends Form with AnyLit {
   def toSTeX = if (value) "\\semtrue" else "\\semfalse"
-  def toHTML = s"<mo>${if (value) "true" else "false"}</mo>"
+  def toHTML = s"<mi>${if (value) "true" else "false"}</mi>"
 }
 
 /** terms */
@@ -138,7 +139,13 @@ case class Apply(op: TOper, args: Seq[Term]) extends Term with OperApply
 /** application of a big (binding) operator to terms */
 case class BigApply(op: BigOper, bnds: List[String], conds: Seq[Form], body: Term) extends Term {
   def toSTeX = s"\\${op.stexname}_{${conds.map(_.toSTeX).mkString(",\\,")}}{${body.toSTeX}}"
-  def toHTML = s"<mrow><msub><mo>${op.sym}</mo><mrow>${Expr.toHTML(conds,",")}</mrow></msub>${body.toHTML}</mrow>"
+  def toHTML = {
+    val bodyH = body match {
+      case o: OperApply if o.op.precedence < Oper.precedence(Times) => Oper.bracket(body.toHTML)
+      case _ => body.toHTML
+    }
+    s"<mrow><munder><mo>${op.sym}</mo><mrow>${Expr.toHTML(conds,",")}</mrow></munder>$bodyH</mrow>"
+  }
   def fvs = body.fvs.filterNot(bnds.contains)
 }
 
@@ -149,7 +156,10 @@ case class Var(name: String) extends Term with AnyVar
 case class Lit(value: Any, domain: Domain) extends Term with AnyLit {
   def toSTeX = toString
   def asInt = if (domain == DInt) value.asInstanceOf[Int] else throw EvalError("value not an integer: " + this)
-  def toHTML = s"<mn>${value.toString}</mn>"
+  def toHTML = domain match {
+    case DString => Name.html(value.toString)
+    case _       => Name.number(value.toString)
+  }
 }
 
 /** probability */
@@ -165,7 +175,7 @@ case class Prob(of: Seq[Expr], conds: Seq[Expr]) extends Term {
   }
   def toHTML = {
     val condsH = if (conds.isEmpty) "" else "<mo>|</mo>" + Expr.toHTML(conds,",")
-    s"""<mrow><mo>P</mo><mo>(</mo>${Expr.toHTML(of,",")}$condsH<mo>)</mo></mrow>"""
+    s"""<mrow><mi>P</mi><mo>(</mo>${Expr.toHTML(of,",")}$condsH<mo>)</mo></mrow>"""
   }
   /** TODO check */
   def fvs = of.flatMap(_.fvs) ++ conds.flatMap(_.fvs)
@@ -173,23 +183,47 @@ case class Prob(of: Seq[Expr], conds: Seq[Expr]) extends Term {
 
 
 object Name {
-  private val symbols = Map(
-    "\\gamma"  -> "γ", "\\pi"    -> "π", "\\sigma" -> "σ", "\\mu"     -> "μ",
-    "\\alpha"  -> "α", "\\beta"  -> "β", "\\theta" -> "θ", "\\lambda" -> "λ",
-    "\\to"     -> "→", "\\times" -> "×"
-  )
-  private val upright = Set("→", "×")
+  private val NumberR = "-?\\d+(\\.\\d+)?".r
+  private val SingleCommand = "\\\\([A-Za-z]+)".r
+  private val Subscript = "([^_]+)_\\{?([^{}]+)\\}?".r
+
+  def html(s: String): String = {
+    val t = s.trim
+    if (NumberR.matches(t)) number(t)
+    else unwrap(t, "mathtt").map(n => s"""<mi mathvariant="normal" class="mathtt">${Html.esc(n)}</mi>""")
+      .orElse(unwrap(t, "mathrm").map(n => s"""<mi mathvariant="normal">${Html.esc(n)}</mi>"""))
+      .orElse(primed(t))
+      .orElse(subscripted(t))
+      .getOrElse(plain(t))
+  }
+
+  /** a numeric literal; negative numbers get a minus operator like in LaTeX */
+  def number(n: String): String =
+    if (n.startsWith("-")) s"<mrow><mo>−</mo><mn>${n.drop(1)}</mn></mrow>" else s"<mn>$n</mn>"
 
   private def unwrap(s: String, macroName: String): Option[String] = {
     val open = "\\" + macroName + "{"
     if (s.startsWith(open) && s.endsWith("}")) Some(s.stripPrefix(open).stripSuffix("}")) else None
   }
 
-  def html(s: String): String =
-    symbols.get(s).map(g => if (upright.contains(g)) s"<mo>$g</mo>" else s"<mi>$g</mi>")
-      .orElse(unwrap(s, "mathtt").map(t => s"""<mi mathvariant="mathtt">$t</mi>"""))
-      .orElse(unwrap(s, "mathrm")).map(t => s"""<mi mathvariant="mathrm">$t</mi>""")
-      .getOrElse(s"<mi>$s</mi>")
+  private def primed(t: String): Option[String] = {
+    val base = t.reverse.dropWhile(_ == '\'').reverse
+    val n = t.length - base.length
+    if (n == 0 || base.isEmpty) None
+    else Some(s"<msup>${html(base)}<mo>${"′" * n}</mo></msup>")
+  }
+
+  private def subscripted(t: String): Option[String] = t match {
+    case Subscript(base, sub) => Some(s"<msub>${html(base)}${html(sub)}</msub>")
+    case _                    => None
+  }
+
+  private def plain(t: String): String = t match {
+    case SingleCommand(c) if Symbols.unicode(c).isDefined =>
+      val u = Symbols.unicode(c).get
+      if (Symbols.isIdentifier(u)) s"<mi>$u</mi>" else s"<mo>$u</mo>"
+    case _ => s"<mi>${Html.esc(Symbols.replaceCommands(t))}</mi>"
+  }
 }
 
 object NameLit {
@@ -216,16 +250,54 @@ sealed abstract class Oper {
   def minArity: Option[Int] = None
   def maxArity: Option[Int] = None
 
+  /** how strongly this operator binds, see [[Oper.precedence]] */
+  def precedence: Int = Oper.precedence(this)
+
   def htmlRule: HTMLRule // may be null if toHTML is overridden
   def toHTML(args: Seq[Expr]): String = {
     htmlRule match {
-      case Infix(n) => s"<mrow>${Expr.toHTML(args, n)}</mrow>"
-      case Prefix(n) => s"<mrow><mo>$n</mo>${Expr.toHTML(args)}</mrow>"
-      case SpecialTag(t) => s"<$t>${Expr.toHTML(args)}</$t>"
+      case Infix(n) => s"<mrow>${args.map(argHTML(_, false)).mkString(s"<mo>$n</mo>")}</mrow>"
+      case Prefix(n) => s"<mrow><mo>$n</mo>${args.map(argHTML(_, true)).mkString}</mrow>"
+      case SpecialTag(t) =>
+        val parts = args.zipWithIndex.map { case (a, i) => if (t == "msup" && i == 0) argHTML(a, false) else a.toHTML }
+        s"<$t>${parts.map(p => s"<mrow>$p</mrow>").mkString}</$t>"
       case AppliedOperator(n) => s"<mrow><mo>$n</mo>${Expr.toHTML(args, ",", "(", ")")}</mrow>"
       case FencedOperator(o,c) => s"<mrow>${Expr.toHTML(args, ",", o, c)}</mrow>"
     }
   }
+
+  private def argHTML(a: Expr, prefix: Boolean): String = {
+    val needed = a match {
+      case o: OperApply =>
+        val p = o.op.precedence
+        p < precedence || (!prefix && p == precedence && !(o.op == this && Oper.associative(this)))
+      case _ => false
+    }
+    if (needed) Oper.bracket(a.toHTML) else a.toHTML
+  }
+}
+
+object Oper {
+  /** binding strength for MathML rendering: higher binds tighter */
+  def precedence(op: Oper): Int = op match {
+    case Implies      => 10
+    case Or           => 20
+    case And          => 30
+    case Neg          => 40
+    case _: FOper     => 50
+    case Plus | Minus => 60
+    case Mod          => 70
+    case Times | Cart => 80
+    case Exp          => 90
+    case _            => 100
+  }
+
+  def associative(op: Oper): Boolean = op match {
+    case And | Or | Plus | Times => true
+    case _                       => false
+  }
+
+  def bracket(html: String): String = s"<mrow><mo>(</mo>$html<mo>)</mo></mrow>"
 }
 
 sealed abstract class BigOper(val stexname: String, val sym: String) {
@@ -311,7 +383,7 @@ object Max extends TOper("intmax", AppliedOperator("max"), 0) {
 
 object Cart extends TOper("cart", Infix("×"), 0)
 object FinSet extends TOper("set", FencedOperator("{","}"), 0)
-object Tuple extends TOper("tup", FencedOperator("(",")"), 0)
+object Tuple extends TOper("tup", FencedOperator("⟨","⟩"), 0) 
 object FinSeq extends TOper("seq", FencedOperator("",""), 0)
 
 /* function symbols whose layout is more than a symbol between the arguments */
@@ -319,24 +391,21 @@ object Divide extends TOper("realdivide", SpecialTag("mfrac"), -1)
 object Exp extends TOper("intpower", SpecialTag("msup"), -1, Some(2))
 object FunApply extends TOper("apply", null, 1) {
   override def toHTML(args: Seq[Expr]) = {
-    s"""<mrow>${args.head.toHTML}${Expr.toHTML(args.tail, "", "(", ")")}</mrow>"""
+    s"""<mrow>${args.head.toHTML}${Expr.toHTML(args.tail, ",", "(", ")")}</mrow>"""
   }
 }
 object RangeSet extends TOper("range", null, -1) {
   override def toHTML(args: Seq[Expr]) =
-    s"""<mrow><mo>{</mo>${args(0).toHTML}<mo>,...,</mo>${args(1).toHTML}<mo>}</mo></mrow>"""
+    s"""<mrow><mo>{</mo>${args(0).toHTML}<mo>,</mo><mo>…</mo><mo>,</mo>${args(1).toHTML}<mo>}</mo></mrow>"""
 }
 /** a path: a state, then alternating action and state, as produced by [[Path.toExpr]] */
 object TransitionChain extends TOper("transitions", null, 0) {
   override def toHTML(args: Seq[Expr]) = {
-    val argsH = args.map(_.toHTML)
-    var left = argsH.tail
-    var steps: List[String] = Nil
-    while (left.nonEmpty) {
-      steps ::= s"<mover>${left(0)}${left(1)}</mover>"
-      left = left.drop(2)
-    }
-    s"<mrow>${argsH(0)}<mover>${steps.reverse}</mrow>"
+    val steps = args.tail.grouped(2).map { step =>
+      val arrow = s"<mover><mo>→</mo>${step.head.toHTML}</mover>"
+      arrow + step.tail.map(_.toHTML).mkString
+    }.mkString
+    s"<mrow>${args.head.toHTML}$steps</mrow>"
   }
 }
 

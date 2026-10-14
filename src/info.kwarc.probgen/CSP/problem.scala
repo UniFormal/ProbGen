@@ -5,21 +5,19 @@ import Expr._
 
 case class CSPProblem(csp: CSP, assignedVar: String, assignedVal: Int) extends Problem[CSPProblem] {
 
-  override def intro(): SText = {
-    val varsList = csp.variables.mkString(", ")
-    val domainsList = csp.variables.map { v =>
-      val domVals = csp.domains(v).mkString(", ")
-      s"D_{$v} = \\{$domVals\\}"
-    }.mkString(", ")
+  /** the domains of some variables, e.g. D_a = {0, 1}, D_b = {0, 1, 2} */
+  private def domainsText(doms: Map[String, List[Int]], vars: List[String]): SText =
+    SSnippet(vars.map(v => SMath(Var(s"D_$v") === FinSet(doms(v)))), ", ")
 
+  override def intro(): SText = {
     val constraintsList = SItemize(csp.constraints.map(c => x"${c}")*)
 
     SSnippet(List(
       x"Consider the following constraint network ${Tuple(Var("V"),Var("D"), Var("C"))}:",
       SItemize(
-        x"Variables ${Var("V")}: \\{$varsList\\}§",
-        x"Domains §$domainsList§",
-        x"Constraints §C§:"
+        x"Variables ${Var("V") === FinSet(csp.variables.map(Var(_))*)}",
+        x"Domains ${domainsText(csp.domains, csp.variables)}",
+        x"Constraints ${Var("C")}:"
       ),
       constraintsList
     ), "\n")
@@ -70,46 +68,27 @@ case class CSPProblem(csp: CSP, assignedVar: String, assignedVal: Int) extends P
       testPairs = Generator.chooseSome(allPairs, 4, 4, false)
     }
 
-    def question() = {
-      val items = testPairs.map { case (v, w) =>
-        s"\\mcc{(\\text{arc-consistent: } $v \\text{ relative to } $w)}"
-      }.mkString("\n")
-      
-      x"Check the boxes for pairs §(v, w)§ where §v§ is arc-consistent relative to §w§." +
-      x"""
-\begin{mcb}
-$items
-\end{mcb}"""
-    }
+    private def choice(v: String, w: String): SText =
+      x"${Var(v)} is arc-consistent relative to ${Var(w)}"
 
-    def solution() = {
-      val items = testPairs.map { case (v, w) =>
-        val isAc = csp.isArcConsistent(v, w)
-        val tag = if (isAc) "T" else "F"
-        s"\\mcc[$tag]{(\\text{arc-consistent: } $v \\text{ relative to } $w)}"
-      }.mkString("\n")
+    def question() =
+      x"Check the boxes for pairs ${Tuple(Var("v"), Var("w"))} where ${Var("v")} is arc-consistent relative to ${Var("w")}.\n" +
+        SChoices(testPairs.map { case (v, w) => (choice(v, w), None) })
 
-      x"""
-\begin{mcb}
-$items
-\end{mcb}"""
-    }
+    def solution() =
+      SChoices(testPairs.map { case (v, w) => (choice(v, w), Some(csp.isArcConsistent(v, w))) })
   }
 
   // 4. Forward Checking
   object forwardChecking extends Subproblem("fc", 2, 3) {
     def question() = {
-      x"Assume a CSP algorithm starts by assigning $assignedVal to $assignedVar." +
+      x"Assume a CSP algorithm starts by assigning $assignedVal to ${Var(assignedVar)}." +
       x" How do the domains of the remaining variables change after forward checking?"
     }
 
     def solution() = {
       val newDoms = csp.forwardChecking(assignedVar, assignedVal)
-      val otherDoms = csp.variables.filter(_ != assignedVar).map { v =>
-        val domVals = newDoms(v).mkString(", ")
-        s"D_{$v} = \\{$domVals\\}"
-      }.mkString(", ")
-      x"The updated domains are: $otherDoms."
+      x"The updated domains are: ${domainsText(newDoms, csp.variables.filter(_ != assignedVar))}."
     }
   }
 

@@ -29,7 +29,7 @@ case class MDPProblem(mdp: MDP,isPolIter: Boolean) extends Problem[MDPProblem] {
 
   // 1. MODELING
   object defineTuple extends Subproblem("model", 3, 5) {
-    def question() = x"Give the sets of states §S§ and actions §A§ for this MDP."
+    def question() = x"Give the sets of states ${Var("S")} and actions ${Var("A")} for this MDP."
     def solution() = {
       val actions = mdp.actions.map(mdp.actionName)
       x"${"S" === FinSet(!mdp.states)}, ${"A" === FinSet(!actions)}"
@@ -52,7 +52,7 @@ case class MDPProblem(mdp: MDP,isPolIter: Boolean) extends Problem[MDPProblem] {
   // 3. THEORY (PI)
   object bellmanEqPI extends Subproblem("theory", 2, 3) {
     override def applicable() = isPolIter
-    def question() = x"State the Bellman Expectation Equation for a fixed policy §\pi§, i.e., for ${U("\\pi","s")}."
+    def question() = x"State the Bellman Expectation Equation for a fixed policy ${Var("\\pi")}, i.e., for ${U("\\pi","s")}."
     def solution() = SMath(U("\\pi", "s") ===
        R("s") + "\\gamma" * Sum("s'", "S")(
          Prob(List("s'"), List("s", "\\pi"("s"))) * U("\\pi","s'")
@@ -84,7 +84,7 @@ case class MDPProblem(mdp: MDP,isPolIter: Boolean) extends Problem[MDPProblem] {
 
     def question() = {
       val a = mdp.actionName(mdp.actions.head)
-      x"Consider policy §\pi§ where ${"\\pi"("s") === DString(a)}. Starting with ${"V"("s") === 0}, perform one step of policy evaluation."
+      x"Consider policy ${Var("\\pi")} where ${"\\pi"("s") === DString(a)}. Starting with ${"V"("s") === 0}, perform one step of policy evaluation."
     }
     def solution() = {
       val res = round(mdp.reward(s))
@@ -97,7 +97,7 @@ case class MDPProblem(mdp: MDP,isPolIter: Boolean) extends Problem[MDPProblem] {
     // Applicable in PI (step 2) OR VI (final step)
     override def applicable() = true
 
-    def question() = x"Suppose we solved the utilities as ${U("s")} for every state §s§. How do we derive the optimal policy?"
+    def question() = x"Suppose we solved the utilities as ${U("s")} for every state ${Var("s")}. How do we derive the optimal policy?"
     def solution() = {
       x"Calculate the utilities for all actions and pick the max: ${"\\pi"("s") === BigArgMax("s'","S")(Prob(Seq("s'"),Seq("s", "a")) * U("s'"))}."
     }
@@ -122,13 +122,14 @@ case class MDPProblem(mdp: MDP,isPolIter: Boolean) extends Problem[MDPProblem] {
     }
 
     def question() = x"Calculate the probability of the agent moving along to $s1 and then to $s2 "
-    + x"by taking the actions ${mdp.actionName(a0)} and ${mdp.actionName(a1)}."
-    
+    + x"by taking the actions ${Var(mdp.actionName(a0))} and ${Var(mdp.actionName(a1))}."
+
     def solution() = {
       val p1 = dist0.getOrElse(s1, 0.0)
       val p2 = dist1.getOrElse(s2, 0.0)
-      val total = round(p1 * p2)
-      x"\[ P = $p1 \times $p2 = $total \]"
+      // rounded, because e.g. 1.0 - 0.7 is 0.30000000000000004 in floating point
+      def lit(d: Double) = DDouble(round(d).toDouble)
+      x"${Var("P") === lit(p1) * lit(p2) === lit(p1 * p2)}"
     }
   }
 
@@ -142,7 +143,7 @@ case class MDPProblem(mdp: MDP,isPolIter: Boolean) extends Problem[MDPProblem] {
       a = Generator.choose(mdp.actions)
     }
 
-    def question() = x"Now assume we use the corresponding POMDP with current belief state ${"b"(!sA) === 0.5}, ${"b"(!sB) === 0.5} and apply action ${"a" === !a}." +
+    def question() = x"Now assume we use the corresponding POMDP with current belief state ${"b"(!sA) === 0.5}, ${"b"(!sB) === 0.5} and apply action ${"a" === Var(mdp.actionName(a))}." +
       x" Calculate the new belief state."
     
     def solution() = {

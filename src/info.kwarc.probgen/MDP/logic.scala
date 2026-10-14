@@ -169,7 +169,7 @@ case class GridMDP(width: Int, height: Int, successProb: Double) extends MDP {
 
   def description() = SSnippet(List(
     x"The agent moves in a ${Cart(DInt(width), DInt(height))} grid.",
-    x"Its possible actions are ${actions.map(a => x"§${actionName(a)}§").mkString(", ")}.",
+    x"Its possible actions are ${FinSeq(actions.map(a => Var(actionName(a)))*)}.",
     x"These succeed with a probability of $successProb and fail without movement otherwise.",
     x""
   ),"\n")

@@ -2,13 +2,14 @@ package info.kwarc.probgen
 
 /** the "αβ-pruning" of the lecture
   *
-  * The framework has no LaTeX command for α and β, so we render them directly.
+  * α and β are two separate identifiers, so they are rendered as two <mi>s
+  * (a single Var("\\alpha\\beta") would be one upright two-letter name).
   * The "-pruning" is part of this node so that the text after it starts with a
   * space and [[SSnippet]] does not insert one before the hyphen.
   */
 case object SAlphaBetaPruning extends SText {
   override def toString = "$\\alpha\\beta$-pruning"
-  def toHTML = """<span class="math"><i>α</i><i>β</i></span>-pruning"""
+  def toHTML = s"<math>${Name.html("\\alpha")}${Name.html("\\beta")}</math>-pruning"
 }
 
 /** draws a game tree, as an SVG picture in the browser and as a tikz picture in

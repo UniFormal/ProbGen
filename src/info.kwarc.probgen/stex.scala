@@ -82,6 +82,21 @@ case class SItem(body: SText) extends STeXSyntax {
   override def toString = "\\item " + body
   override def toHTML: String = s"<li>${body.toHTML}</li>"
 }
+case class SChoices(choices: Seq[(SText, Option[Boolean])]) extends SEnvironment("mcb") with SText {
+  def body = choices.map { case (t, c) => SChoice(t, c) }
+  override def toHTML: String = "<ul class='choices'>" + body.map(_.toHTML).mkString("") + "</ul>"
+}
+case class SChoice(text: SText, correct: Option[Boolean]) extends STeXSyntax {
+  override def toString = correct match {
+    case None    => s"\\mcc{$text}"
+    case Some(c) => s"\\mcc[${if (c) "T" else "F"}]{$text}"
+  }
+  def toHTML: String = {
+    val box = if (correct.contains(true)) "☑" else "☐"
+    s"<li><span class='choice-box'>$box</span> ${text.toHTML}</li>"
+  }
+}
+
 case class SCenter(body: Seq[STeXSyntax]) extends SEnvironment("center") {
   override def toHTML: String =
     s"<div style='text-align:center'>${body.map(_.toHTML).mkString("")}</div>"

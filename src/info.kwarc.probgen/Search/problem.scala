@@ -69,24 +69,24 @@ case class ExpressionBasedDeterministicSearchProblem(
         ~goalForm)
     } else {(
       x"as given by the table below (where empty cells indicate inapplicable actions)",
-      x"the states marked by §\to§ below",
-      x"§s§ is marked by §!§ below"
+      x"the states marked by ${Var("\\rightarrow")} below",
+      x"${Var("s")} is marked by ${Var("!")} below"
     )}
     val part1 = SText(
       x"Consider the following search problem:\n",
       SItemize(
-        x"set §S§ of states: ${FinSet(states.map(stateName)*)}",
-        x"set §A§ of actions: ${FinSet(actions.map(actionName)*)}",
-        x"transition relation §T§: $tr",
-        x"initial states §I§: $ins",
-        x"goal states §G§: ${InSet(Var("s"),Var("G"))} iff $go"
+        x"set ${Var("S")} of states: ${FinSet(states.map(stateName)*)}",
+        x"set ${Var("A")} of actions: ${FinSet(actions.map(actionName)*)}",
+        x"transition relation ${Var("T")}: $tr",
+        x"initial states ${Var("I")}: $ins",
+        x"goal states ${Var("G")}: ${InSet(Var("s"),Var("G"))} iff $go"
       )
     )
     val part2 = if (presentArithmetically) null else {
       val rowHeads = states.map { s =>
         val sN = stateName(s)
-        if (initial.contains(s)) x"§\to§ $sN"
-        else if (goal(s)) x"$sN §!§ "
+        if (initial.contains(s)) x"${Var("\\rightarrow")} $sN"
+        else if (goal(s)) x"$sN ${Var("!")} "
         else x"$sN"
       }
       val cells = states.zipWithIndex.flatMap { case (s,i) =>
@@ -105,7 +105,7 @@ case class ExpressionBasedDeterministicSearchProblem(
 
   object whyPO extends Subproblem("apply", 1, 2) {
     def question() = x"This search problem is fully observable. How can we tell?"
-    def solution() = x"The set of initial states has size §1§."
+    def solution() = x"The set of initial states has size ${1}."
   }
 
   object whyDet extends Subproblem("apply", 1, 2) {
@@ -117,8 +117,8 @@ case class ExpressionBasedDeterministicSearchProblem(
 
   object actionNotApplicable extends Subproblem("apply", 1, 2) {
     override def applicable() = presentArithmetically && inapplicableActions.nonEmpty
-    def question() = x"Give an example of a state §s§ and an action §a§ such that §a§ is not applicable in §s§."
-    def solution() = x"The correct answers §(s,a)§ are ${inapplicableActions.map(sa => (stateName(sa._1), actionName(sa._2)))}"
+    def question() = x"Give an example of a state ${Var("s")} and an action ${Var("a")} such that ${Var("a")} is not applicable in ${Var("s")}."
+    def solution() = x"The correct answers ${Tuple(Var("s"), Var("a"))} are ${inapplicableActions.map(sa => (stateName(sa._1), actionName(sa._2)))}"
   }
 
   object allActionsApplicable extends Subproblem("apply", 1, 2) {
