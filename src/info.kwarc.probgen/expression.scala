@@ -51,6 +51,10 @@ implicit class AnyToExpr(a: Any) {
 
 /** built-in literals */
 abstract class Domain
+/** an abstract domain, e.g., for FOL */
+case object AbstractDomain extends Domain
+
+/** concrete domains */
 abstract class IntegerDomain extends Domain {
   def apply(v: Int) = Lit(v, this)
 }
@@ -342,6 +346,13 @@ sealed abstract class COper(val stexname: String, val htmlRule: HTMLRule, val fl
   }
 }
 
+/** typed quantification */
+case class QuantifiedForm(univ: Boolean, vr: String, dom: Domain, body: Form) extends Form {
+  def fvs = body.fvs.diff(List(vr))
+  def toHTML = ??? // TODO
+  def toSTeX = ??? // TODO
+}
+
 // lazy on purpose: these objects refer back to the operators, so building them
 // eagerly risks the initialisation cycle described at TOper's auxiliary constructor
 object FOper {
@@ -426,6 +437,11 @@ object Context {
   def apply(): Context = Context(Nil)
   def apply(v: (String,Int)): Context = Context()(v)
 }
+
+// expressions with uninterpreted symbols, e.g., for FOL; these cannot be evaluated without using a model
+// see FOL/logic
+case class AbstractFunSym(name: String) extends TOper(name, Prefix(name), -1, None)
+case class AbstractPredSym(name: String) extends FOper(name, Prefix(name), -1)
 
 case class EvalError(m: String) extends Exception(m)
 
