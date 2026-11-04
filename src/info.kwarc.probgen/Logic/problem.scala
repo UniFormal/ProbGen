@@ -21,32 +21,27 @@ case class PropLogicProblem(formula: Form) extends Problem[PropLogicProblem] {
   // structurally in the right normal form and equivalent to the original -
   // any valid CNF/DNF is accepted, not just the one particular shape toCNF/
   // toDNF happens to produce.
-  private def checkNormalForm(
-      input: String,
-      isRightForm: Form => Boolean,
-      formName: String
-  ): CheckResult =
-    try
-      val userForm = PropLogic.parseForm(input)
+  private def normalFormGrader(isRightForm: Form => Boolean, formName: String): Grader =
+    input => Grader.onParsed(ExprParser.parseForm(input)) { userForm =>
       if !isRightForm(userForm) then
         Incorrect(s"That is not in $formName - check the shape of your formula.")
       else if !PropLogic.isEquivalent(userForm, formula) then
         Incorrect(s"That $formName is not equivalent to the original formula.")
       else Correct()
-    catch case e: Exception => Incorrect(s"Could not parse your formula: ${e.getMessage}")
+    }
 
   object ConvertToCNF extends Subproblem("cnf", 2, 3) {
+    override def answerHint = "e.g. (p or not q) and r"
     def question() = x"Convert $formula to Conjunctive Normal Form (CNF)."
     def solution() = x"${PropLogic.toCNF(formula)}"
-    override def checkSolution(input: String): CheckResult =
-      checkNormalForm(input, PropLogic.isCNF, "CNF")
+    override def grader = Some(normalFormGrader(PropLogic.isCNF, "CNF"))
   }
 
   object ConvertToDNF extends Subproblem("dnf", 2, 3) {
+    override def answerHint = "e.g. (p and not q) or r"
     def question() = x"Convert $formula to Disjunctive Normal Form (DNF)."
     def solution() = x"${PropLogic.toDNF(formula)}"
-    override def checkSolution(input: String): CheckResult =
-      checkNormalForm(input, PropLogic.isDNF, "DNF")
+    override def grader = Some(normalFormGrader(PropLogic.isDNF, "DNF"))
   }
 
   // All 2^|fvars| assignments of a formula over fvars, each a List[(var,value)]
@@ -55,38 +50,11 @@ case class PropLogicProblem(formula: Form) extends Problem[PropLogicProblem] {
 
   private def holds(f: Form, assignment: Context): Boolean = Evaluator(f)(using assignment)
 
-  // Parse "p = true, q = false" into a var->value set, order-independent, or
-  // None if malformed or it doesn't mention exactly the given variables.
-  private def parseAssignment(fvars: Seq[String], s: String): Option[Context] = {
-    val pairs = s.split(",").toList.map(_.trim).filter(_.nonEmpty).map(_.split("=").toList.map(_.trim))
-    if pairs.exists(p => p.length != 2 || !(p(1).equalsIgnoreCase("true") || p(1).equalsIgnoreCase("false")))
-    then None
-    else {
-      val set = pairs.map(p => (p(0),BLit(p(1).equalsIgnoreCase("true"))))
-      if set.map(_._1).toSet == fvars.toSet then Some(Context(set)) else None
-    }
-  }
-
-  // Parse a ';'-separated list of assignments ("none"/empty means no assignments).
-  private def parseAssignmentList(fvars: Seq[String], s: String): Option[Set[Context]] = {
-    val trimmed = s.trim
-    if trimmed.isEmpty || trimmed.equalsIgnoreCase("none") then Some(Set.empty)
-    else {
-      val parsed = trimmed.split(";").toList.map(_.trim).filter(_.nonEmpty).map(parseAssignment(fvars,_))
-      if parsed.forall(_.isDefined) then Some(parsed.flatten.toSet) else None
-    }
-  }
-  private def parseYesNo(input: String): Option[Boolean] = {
-    val ans = input.trim.toLowerCase
-    if Set("yes","y","true").contains(ans) then Some(true)
-    else if Set("no","n","false").contains(ans) then Some(false)
-    else None
-  }
-
   // Shared shape for "list all satisfying/falsifying assignments of ..." -
   // each instance generates its own fresh formula (distinct from `formula`
   // and from each other), so seeing one doesn't spoil the others.
   abstract class AssignmentSubproblem(id: String, satisfying: Boolean) extends Subproblem(id, 2, 4) {
+    override def answerHint = "e.g. p=true, q=false; p=false, q=true (or: none)"
     private val kind = if satisfying then "satisfying" else "falsifying"
     var ownFormula: Form = null
     private def ownVars = ownFormula.fvsD.sorted
@@ -101,7 +69,7 @@ case class PropLogicProblem(formula: Form) extends Problem[PropLogicProblem] {
     def question() =
       x"List all $kind assignments of $ownFormula - every assignment that makes it" +
         x" ${if satisfying then "true" else "false"}." +
-        x" Write each as e.g. '${Context(ownVars.toList.map(v => (v, BLit(true))))}', separate" +
+        x" Write each as e.g. '${Context(ownVars.toList.map(v => (v, BLit(true)))).toString}', separate" +
         x" several with ';', and write 'none' if there are none."
 
     def solution(): SText = {
@@ -109,21 +77,14 @@ case class PropLogicProblem(formula: Form) extends Problem[PropLogicProblem] {
       if ms.isEmpty then x"There are no $kind assignments."
       else SSnippet(List(SItemize(ms.map(a => SPlainText(a.toString)) *)))
     }
-    override def checkSolution(input: String): CheckResult = {
-      parseAssignmentList(ownVars, input) match
-        case Some(userAns) =>
-          val expected = matching.toSet
-          if userAns == expected then Correct() else Incorrect(s"Not quite - expected: ${solution().toHTML}")
-        case None =>
-          Incorrect("Could not parse your answer - use 'var = true/false' pairs separated by commas, and ';' between assignments.")
-
-    }
+    override def grader = Some(ContextSetGrader(matching, ownVars.toSet))
   }
 
   object GiveSatisfyingAssignments extends AssignmentSubproblem("sat", satisfying = true)
   object GiveFalsifyingAssignments extends AssignmentSubproblem("unsat", satisfying = false)
 
   object CheckValidity extends Subproblem("valid", 1, 1) {
+    override def answerHint = "yes or no"
     var ownFormula: Form = null
     var valid: Boolean = false
 
@@ -134,12 +95,8 @@ case class PropLogicProblem(formula: Form) extends Problem[PropLogicProblem] {
     def question() = x"Is $ownFormula valid (true under every assignment)? Answer yes or no."
     def solution() = x"${if valid then "yes" else "no"}"
 
-    override def checkSolution(input: String): CheckResult =
-      parseYesNo(input) match
-        case None      => NotCheckable(solution().toHTML)
-        case Some(ans) =>
-          if ans == valid then Correct()
-          else Incorrect(s"The correct answer is: ${if valid then "yes" else "no"}.")
+    override def grader = Some(YesNoGrader(valid,
+      "Not quite: a formula is valid if it is true under every assignment."))
   }
 
   // Not valid, but changing exactly one And/Or/Implies connective makes it
@@ -147,6 +104,7 @@ case class PropLogicProblem(formula: Form) extends Problem[PropLogicProblem] {
   // such fix (cheap: small trees, few vars, so this is found almost
   // immediately in practice; capped so a bad parameter combo can't hang).
   object MakeValid extends Subproblem("makevalid", 2, 4) {
+    override def answerHint = "a formula, e.g. p -> (q or p)"
     var ownFormula: Form = null
     var fixes: List[Form] = Nil
 
@@ -168,17 +126,17 @@ case class PropLogicProblem(formula: Form) extends Problem[PropLogicProblem] {
       case one :: Nil   => x"$one"
       case many         => SSnippet(List(x"Any one of:", SItemize(many.map(f => ~f)*)))
 
-    override def checkSolution(input: String): CheckResult =
-      try
-        val userForm = PropLogic.parseForm(input)
-        if !PropLogic.isValid(userForm) then Incorrect("Your formula is not valid.")
-        else if !fixes.contains(userForm) then
-          Incorrect("Your formula isn't reachable by changing just one connective of the original.")
-        else Correct()
-      catch case e: Exception => Incorrect(s"Could not parse your formula: ${e.getMessage}")
+    // flattened, since the page shows (p or q) or r as p ∨ q ∨ r
+    override def grader = Some(input => Grader.onParsed(ExprParser.parseForm(input)) { userForm =>
+      if !PropLogic.isValid(userForm) then Incorrect("Your formula is not valid.")
+      else if !fixes.map(PropLogic.flatten).contains(PropLogic.flatten(userForm)) then
+        Incorrect("Your formula is valid, but it is not the original with exactly one connective changed.")
+      else Correct()
+    })
   }
 
   object CheckEquivalence extends Subproblem("equiv", 1, 1) {
+    override def answerHint = "yes or no"
     var other: Form = null
     var equivalent: Boolean = false
 
@@ -194,12 +152,8 @@ case class PropLogicProblem(formula: Form) extends Problem[PropLogicProblem] {
       x"Are the formulas $formula and $other logically equivalent? Answer yes or no."
     def solution() = x"${if equivalent then "yes" else "no"}"
 
-    override def checkSolution(input: String): CheckResult =
-      parseYesNo(input) match
-        case None      => NotCheckable(solution().toHTML)
-        case Some(ans) =>
-          if ans == equivalent then Correct()
-          else Incorrect(s"The correct answer is: ${if equivalent then "yes" else "no"}.")
+    override def grader = Some(YesNoGrader(equivalent,
+      "Not quite: two formulas are equivalent if they have the same value under every assignment."))
   }
 
   GroupConstraint(1, 1, ConvertToCNF)

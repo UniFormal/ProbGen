@@ -40,27 +40,39 @@ case class MinimaxProblem(tree: MinimaxTree, hiddenLeaf: Option[String])
       x"Assume ${Var(l)} is labeled with ${DInt(tree.values(l))}. "
   }
 
-  // ── Parsing of the answers ───────────────────────────────────────────────
+  // ── Reading the answers ──────────────────────────────────────────────────
 
-  /** all integers occurring in the input */
-  private def ints(s: String): List[Int] =
-    "-?\\d+".r.findAllIn(s).map(_.toInt).toList
+  /** a node of this tree, as typed by the student (case does not matter) */
+  private def nodeOf(t: Term): Either[String, String] = t match {
+    case Var(n) if tree.names.contains(n.toUpperCase) => Right(n.toUpperCase)
+    case other => Left(s"<code>${Html.esc(ExprCompare.show(other))}</code> is not a node of this tree. " +
+      "Write node names separated by commas, e.g. F, G.")
+  }
 
-  /** all node names occurring in the input, i.e. all single letters; words like
-    * "and" or "node" are ignored
+  /** the labels of `leaf` for which the student's condition holds, e.g. "E >= 4",
+    * ">= 4" (the leaf is implied) or "5" (only that label)
     */
-  private def nodeNames(s: String): List[String] = {
-    val tokens = s.toUpperCase.split("[^A-Z]+").filter(_.nonEmpty).toList
-    // a run of letters like "IJLMO" is a list of nodes, but only if every
-    // letter really is a node of this tree, so that words are not mistaken for
-    // node names
-    tokens.flatMap { t =>
-      if (t.length == 1) List(t)
-      else {
-        val letters = t.map(_.toString).toList
-        if (letters.forall(tree.names.contains)) letters else Nil
+  private def labelsSatisfying(input: String, leaf: String): Either[String, Set[Int]] = {
+    val t = input.trim.replace("=>", ">=").replace("=<", "<=")
+    val text = if (t.headOption.exists(c => "<>=≤≥≠!".contains(c))) s"$leaf $t" else t
+    val condition: Either[String, Form] = ExprParser.parseForm(text) match {
+      case r @ Right(_) => r
+      case Left(err) => ExprParser.parseTerm(t) match {
+        case Right(n) if ExprCompare.numericValue(n).isDefined => Right(Equals(Var(leaf), n))
+        case _                                                  => Left(err)
       }
-    }.distinct
+    }
+    val example = s"Write a condition on the label of $leaf, e.g. $leaf >= 4 or 3 <= $leaf <= 7."
+    condition.flatMap { f =>
+      if (!f.fvs.forall(_.toUpperCase == leaf)) Left(example)
+      else
+        try {
+          val labels = Range(MinimaxTree.scanFrom, MinimaxTree.scanTo + 1).toList
+          Right(labels.filter { v =>
+            Evaluator(f)(using Context(List(leaf -> DInt(v), leaf.toLowerCase -> DInt(v))))
+          }.toSet)
+        } catch { case _: EvalError => Left(example) }
+    }
   }
 
   private def count(n: Int, noun: String) =
@@ -70,61 +82,6 @@ case class MinimaxProblem(tree: MinimaxTree, hiddenLeaf: Option[String])
     val t = s.toLowerCase.trim
     t == "-" || t == "none" || t == "no" || t == "nothing" || t == "no nodes" ||
     t == "nothing is pruned" || t == "none are pruned"
-  }
-
-  /** reads an answer like ">= 4", "at least 4", "4+", "3..7" or "5" */
-  private def parseRange(raw: String): Option[IntRange] = {
-    val words = raw.toLowerCase
-      .replace("≥", ">=")
-      .replace("≤", "<=")
-      .replace("=>", ">=")
-      .replace("=<", "<=")
-      .replace("at least", ">=")
-      .replace("at most", "<=")
-      .replace("greater than or equal to", ">=")
-      .replace("less than or equal to", "<=")
-      .replace("greater than", ">")
-      .replace("bigger than", ">")
-      .replace("larger than", ">")
-      .replace("less than", "<")
-      .replace("smaller than", "<")
-      .replace("or more", "+")
-      .replace("or greater", "+")
-      .replace("or higher", "+")
-      .replace("or above", "+")
-    val s = words.filterNot(_.isWhitespace)
-    val ns = ints(s)
-    if (ns.isEmpty) None
-    else if (s.contains("..") || s.contains("to")) {
-      if (ns.length == 2) Some(IntRange(Some(ns.min), Some(ns.max))) else None
-    } else
-      List(">=", "<=", ">", "<").find(s.contains(_)) match {
-        case None =>
-          if (s.endsWith("+")) Some(IntRange(Some(ns.head), None))
-          else if (ns.length == 1) Some(IntRange(Some(ns.head), Some(ns.head)))
-          else None
-        case Some(op) =>
-          val i = s.indexOf(op)
-          // "3 <= E" says the same as "E >= 3", so the operator has to be
-          // flipped if the number stands on its left
-          val flipped = s.take(i).exists(_.isDigit)
-          val n = ints(s.drop(i)).headOption.getOrElse(ns.head)
-          val effective =
-            if (!flipped) op
-            else
-              op match {
-                case ">=" => "<="
-                case "<=" => ">="
-                case ">"  => "<"
-                case _    => ">"
-              }
-          effective match {
-            case ">=" => Some(IntRange(Some(n), None))
-            case "<=" => Some(IntRange(None, Some(n)))
-            case ">"  => Some(IntRange(Some(n + 1), None))
-            case _    => Some(IntRange(None, Some(n - 1)))
-          }
-      }
   }
 
   private def describeRange(r: IntRange, leaf: String): SText =
@@ -141,6 +98,7 @@ case class MinimaxProblem(tree: MinimaxTree, hiddenLeaf: Option[String])
 
   /** the labels of the missing leaf that force one particular move */
   object labelsForcingMove extends Subproblem("minimax", 2, 4) {
+    override def answerHint = s"e.g. $leaf >= 4, or 3 <= $leaf <= 7"
     private def leaf = hiddenLeaf.get
     private def move = tree.moveContaining(leaf).get
     private def range = tree.labelsForcingMove(leaf, move).get
@@ -157,73 +115,65 @@ case class MinimaxProblem(tree: MinimaxTree, hiddenLeaf: Option[String])
 
     def solution() = describeRange(range, leaf)
 
-    override def checkSolution(input: String): CheckResult = {
-      if (saysNone(input))
-        return Incorrect("There are labels that force this move.")
-      parseRange(input) match {
-        case None        =>
-          Incorrect("Give a range of labels, for example \">= 4\" or \"3..7\".")
-        case Some(answer) =>
-          val expected = range
-          if (answer == expected) Correct()
-          else if (answer.lo.isDefined && expected.lo.isDefined &&
-            math.abs(answer.lo.get - expected.lo.get) == 1 && answer.hi == expected.hi)
-            Incorrect(
-              "Almost — check whether the boundary label itself already makes the move strictly better than the others."
-            )
-          else if (answer.hi.isDefined && expected.hi.isEmpty)
-            Incorrect(
-              "Higher labels are possible too: think about what the parent of this leaf does with a very large value."
-            )
-          else Incorrect("That is not the set of labels that force this move.")
+    // right if the condition holds for exactly the labels that force the move
+    override def checkSolution(input: String): CheckResult =
+      if (saysNone(input)) Incorrect("There are labels that force this move.")
+      else Grader.onParsed(labelsSatisfying(input, leaf)) { answered =>
+        val labels   = Range(MinimaxTree.scanFrom, MinimaxTree.scanTo + 1).toList
+        val expected = labels.filter(range.contains).toSet
+        val differ   = (answered diff expected) union (expected diff answered)
+        if (differ.isEmpty) Correct()
+        else if (differ.size == 1 && range.lo.exists(l => differ.head == l || differ.head == l - 1))
+          Incorrect("Almost — check whether the boundary label itself already makes the move strictly better than the others.")
+        else if (range.hi.isEmpty && !answered.contains(MinimaxTree.scanTo))
+          Incorrect("Higher labels are possible too: think about what the parent of this leaf does with a very large value.")
+        else Incorrect("That is not the set of labels that force this move.")
       }
-    }
   }
 
   /** the minimax value of the root */
   object labelRoot extends Subproblem("minimax", 2, 3) {
+    override def answerHint = "a number, e.g. 5"
     def question() =
       assumption() + x"Label the node ${Var(rootName)} with its minimax value."
     def solution() = x"${Equals(Var(rootName), DInt(tree.rootValue))}"
 
     override def checkSolution(input: String): CheckResult =
-      ints(input) match {
-        case List(v) =>
-          if (v == tree.rootValue) Correct()
-          else
-            Incorrect(
-              "That is not the minimax value of the root. Work bottom up: maximize at even depth, minimize at odd depth."
-            )
-        case Nil => Incorrect("Give the minimax value as a number.")
-        case _   => Incorrect("Give a single number.")
+      Grader.onParsed(NumberGrader.parse(input)) { v =>
+        if (v == tree.rootValue) Correct()
+        else Incorrect("That is not the minimax value of the root. Work bottom up: maximize at even depth, minimize at odd depth.")
       }
   }
 
   /** the move the player chooses */
   object chooseMove extends Subproblem("minimax", 1, 3) {
+    override def answerHint = "a node, e.g. B"
     override def applicable() = tree.uniqueBestMove.isDefined
 
     def question() =
       assumption() + x"Which move would be chosen by the player?"
     def solution() = x"${Var(tree.uniqueBestMove.get)}"
 
+    // a student may write the move as "A -> B", from the root
     override def checkSolution(input: String): CheckResult = {
-      // a student may write the move as "A -> B", so ignore the root
-      val answer = nodeNames(input).filterNot(_ == rootName)
-      answer match {
-        case List(n) =>
-          if (n == tree.uniqueBestMove.get) Correct()
-          else if (!tree.root.children.exists(_.name == n))
-            Incorrect(s"$n is not a move, i.e. not a child of the root.")
-          else Incorrect("That is not the move the player would choose.")
-        case Nil => Incorrect("Answer with the name of a node, for example B.")
-        case _   => Incorrect("The player chooses exactly one move.")
+      val node: Either[String, String] = ExprParser.parseTerm(input) match {
+        case Right(t) => nodeOf(t)
+        case Left(err) => ExprParser.parseForm(input) match {
+          case Right(Implies(Seq(BVar(from), BVar(to)))) if from.toUpperCase == rootName => nodeOf(Var(to))
+          case _ => Left("Answer with the name of one node, for example B.")
+        }
+      }
+      Grader.onParsed(node) { n =>
+        if (n == tree.uniqueBestMove.get) Correct()
+        else if (!tree.root.children.exists(_.name == n)) Incorrect(s"$n is not a move, i.e. not a child of the root.")
+        else Incorrect("That is not the move the player would choose.")
       }
     }
   }
 
   /** the nodes that alpha-beta pruning prunes */
   object pruning extends Subproblem("alphabeta", 2, 4) {
+    override def answerHint = "e.g. F, G, K"
     override def applicable() = tree.pruned.nonEmpty
 
     def question() =
@@ -232,31 +182,13 @@ case class MinimaxProblem(tree: MinimaxTree, hiddenLeaf: Option[String])
 
     override def checkSolution(input: String): CheckResult = {
       val expected = tree.pruned.toSet
-      if (saysNone(input))
-        return Incorrect(s"${count(expected.size, "node")} are pruned.")
-      val answer = nodeNames(input).toSet
-      if (answer.isEmpty)
-        return Incorrect("List the pruned nodes by name, for example \"F, G\".")
-      val unknown = answer.filterNot(n => tree.names.contains(n))
-      if (unknown.nonEmpty)
-        return Incorrect(
-          s"${unknown.toList.sorted.mkString(", ")} do(es) not occur in this tree."
-        )
-      if (answer == expected) Correct()
-      else {
-        val missing = (expected -- answer).size
-        val extra = (answer -- expected).size
-        val hints = List(
-          if (missing > 0) Some(s"you are missing ${count(missing, "pruned node")}")
-          else None,
-          if (extra > 0)
-            Some(s"${count(extra, "node")} you listed are actually visited")
-          else None
-        ).flatten
-        Incorrect(
-          "Not quite: " + hints.mkString(" and ") +
-            ". Remember that pruning a node prunes its whole subtree."
-        )
+      if (saysNone(input)) Incorrect(s"${count(expected.size, "node")} are pruned.")
+      else Grader.onParsed(ExprParser.parseTermList(input).flatMap(ts => Grader.sequence(ts)(nodeOf))) { answer =>
+        Grader.toResult(Grader.compareSets(answer, expected, identity, false, "node")) match {
+          case Incorrect(h)           => Incorrect(h + " Remember that pruning a node prunes its whole subtree.")
+          case PartiallyCorrect(f, h) => PartiallyCorrect(f, h + " Remember that pruning a node prunes its whole subtree.")
+          case r                      => r
+        }
       }
     }
   }

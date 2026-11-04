@@ -1,8 +1,8 @@
 package info.kwarc.probgen
 
 object PropLogic {
-  def assignments(vs: Seq[String]): List[Context] = vs match {
-    case Nil => Nil
+  def assignments(vs: Seq[String]): List[Context] = vs.toList match {
+    case Nil => List(Context())
     case h :: t =>
       val tA = assignments(t)
       tA.flatMap {c => List(c(h -> true),c(h -> false))}
@@ -107,7 +107,7 @@ object PropLogic {
   }
 
   // merge nested And/Or of the same connective into one flat list
-  private def flatten(form: Form): Form = form match {
+  def flatten(form: Form): Form = form match {
     case Conn(op@(And | Or),args) =>
       val flatArgs = args.map(flatten).flatMap {
         case Conn(`op`,inner) => inner
@@ -122,7 +122,7 @@ object PropLogic {
 
   private def isLiteral(f: Form): Boolean = f match {
     case BVar(_) => true
-    case Neg(BVar(_)) => true
+    case Neg(Seq(BVar(_))) => true // Neg.unapply yields the argument list
     case _ => false
   }
 
@@ -171,157 +171,4 @@ object PropLogic {
 
   private def neg(f: Form): Form = Conn(Neg, List(f))
   private def clause(lits: Form*): Form = Conn(Or, lits.toList)
-
-  def parseForm(input: String): Form = FormulaParser.parse(input)
-}
-
-object FormulaParser {
-  def parse(input: String): Form =
-    val tokens = tokenize(input)
-    val parser = new Parser(tokens)
-    val result = parser.parseFormula()
-    if (!parser.atEnd) then
-      throw new IllegalArgumentException(s"Unexpected token : ${parser.peek}")
-    result
-
-  private def tokenize(input: String): List[String] =
-    input
-      .replace("(", " ( ")
-      .replace(")", " ) ")
-      .replace("->", " -> ")
-      .trim
-      .split("\\s+")
-      .toList
-      .filter(_.nonEmpty)
-  private class Parser(tokens: List[String]) {
-    private var position = 0
-
-    def atEnd: Boolean =
-      position >= tokens.length
-
-    def peek: String =
-      if (atEnd) "<EOF>" else tokens(position)
-
-    private def consume(): String =
-      val token = peek
-      position += 1
-      token
-
-    private def expect(token: String): Unit =
-      if (peek != token)
-        throw new IllegalArgumentException(s"Expected '$token' , found '$peek'")
-      consume()
-
-    def parseFormula(): Form =
-      parseImplies()
-
-    private def parseImplies(): Form =
-      var left = parseOr()
-
-      if (peek == "->" || peek == "implies") then
-        consume()
-        val right = parseImplies()
-        Conn(Implies, List(left, right))
-      else left
-
-    private def parseOr(): Form =
-      val first = parseAnd()
-      if (peek != "or") then first
-      else
-        val forms = scala.collection.mutable.ListBuffer(first)
-        while (peek == "or")
-          consume()
-          forms += parseAnd()
-        Conn(Or, forms.toList)
-
-    private def parseAnd(): Form =
-      var left = parseNeg()
-      if (peek != "and") then left
-      else
-        val forms = scala.collection.mutable.ListBuffer(left)
-        while (peek == "and") do
-          consume()
-          forms += parseNeg()
-        Conn(And, forms.toList)
-
-    private def parseNeg(): Form =
-      // accept both "neg" and "not" - Neg.text (used when rendering, i.e.
-      // what's shown to users as e.g. a problem's solution) renders as
-      // "not", so the parser must accept that spelling too or its own
-      // output wouldn't parse back in
-      if (peek == "neg" || peek == "not") then
-        consume()
-        Conn(Neg, List(parseNeg()))
-      else parseAtom()
-
-    private def parseAtom(): Form =
-      if (peek == "(") then
-        consume()
-        val formula = parseFormula()
-        expect(")")
-        formula
-      else if (peek.matches("[A-Za-z][A-Za-z0-9_]*")) then BVar(consume())
-      else
-        throw new IllegalArgumentException(
-          s"Expected Variable or '(', found '$peek' "
-        )
-
-  }
-}
-
-object Mytest {
-
-  def main(args: Array[String]) =
-    val k = PropLogic.parseForm("p -> q -> p")
-    println(k)
-    val gk = PropLogic.parseForm("(p -> q) -> p")
-    println(gk)
-    val ans = PropLogic.findAllAssignments(k, true)
-    val ans2 = PropLogic.findAllAssignments(gk, true)
-    ans.foreach(println)
-    println("=======================")
-    ans2.foreach(println)
-
-    println("=======================")
-    val cnfSrc = PropLogic.parseForm("(p -> q) -> p")
-    val cnf = PropLogic.toCNF(cnfSrc)
-    println(s"${cnfSrc}  ==CNF==>  ${cnf}")
-
-    println("=======================")
-    val f1 = PropLogic.parseForm("p -> q")
-    val f2 = PropLogic.parseForm("neg p or q")
-    val f3 = PropLogic.parseForm("neg (p and neg q)")
-    println(s"(p -> q) equiv (neg p or q)?          ${PropLogic.isEquivalent(f1, f2)}")
-    println(s"(p -> q) equiv (neg (p and neg q))?   ${PropLogic.isEquivalent(f1, f3)}")
-    println(s"(p -> q) equiv (p and q)?             ${PropLogic.isEquivalent(f1, PropLogic.parseForm("p and q"))}")
-
-    println("=======================")
-    val dnfSrc = PropLogic.parseForm("(p and q) or (neg r and s)")
-    val dnf = PropLogic.toDNF(dnfSrc)
-    println(s"${dnfSrc}  ==DNF==>  ${dnf}")
-    println(s"still equivalent to original? ${PropLogic.isEquivalent(dnfSrc, dnf)}")
-
-    println("=======================")
-    for (_ <- 1 to 5)
-      val rf = PropFormulaGenerator.generate(
-        vars = List("p", "q", "r"),
-        minDepth = 2,
-        maxDepth = 4,
-        minVars = 2,
-        weights = ConnectiveWeights(and = 40, or = 20, implies = 30, not = 10)
-      )
-      println(rf)
-
-    println("=======================")
-    val problem = LogicProblemGenerator.make()
-    val subs = problem.chooseSubproblems()
-    subs.foreach { sub =>
-      println(s"[${sub.id}] ${sub.question()}")
-      println(s"  expected: ${sub.solution()}")
-    }
-    val cnfSub = subs.find(_.id == "cnf").get
-    println(s"  submit expected solution -> ${cnfSub.checkSolution(cnfSub.solution().toString)}")
-    println(s"  submit garbage 'p and'    -> ${cnfSub.checkSolution("p and")}")
-    println(s"  submit 'p or not p'       -> ${cnfSub.checkSolution("p or neg p")}")
-
 }

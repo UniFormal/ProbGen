@@ -17,6 +17,7 @@ case class BasicProbabilityProblem(setting: BasicProbability) extends Problem[Ba
   def eventNamesShort = ~ RangeSet(setting.eventNames.head, setting.eventNames.last)
 
   object GiveProb extends Subproblem("giveprob", 2, 2) {
+    override def answerHint = "e.g. a + c + f"
     var form: Form = null
     var result: (Int,Expr) = (0,null)
     /** the expected answer as a set of event names, e.g. Set("a","c","f") */
@@ -36,6 +37,7 @@ case class BasicProbabilityProblem(setting: BasicProbability) extends Problem[Ba
   }
 
   object GiveCondProb extends Subproblem("givecondprob",2,2) {
+    override def answerHint = "e.g. (a + c) / (a + b + c)"
     var form: Form = null
     var cond: Form = null
     // (p, q, (sum of p terms) / (sum of q terms))

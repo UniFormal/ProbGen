@@ -23,10 +23,23 @@ case class CSPProblem(csp: CSP, assignedVar: String, assignedVal: Int) extends P
     ), "\n")
   }
 
+  /** a student's assignment, if it gives every variable a value from its domain */
+  private def totalAssignment(c: Context): Either[String, Context] =
+    if (c.asMap.keySet != csp.variables.toSet)
+      Left(s"Give each of ${Html.codeList(csp.variables)} exactly one value.")
+    else Grader.sequence(csp.variables) { v =>
+      ExprCompare.numericValue(c(v)) match {
+        case Some(x) if x.isWhole && csp.domains(v).contains(x.toInt) => Right(v -> DInt(x.toInt))
+        case _ => Left(s"The value of <code>$v</code> must be in its domain {${csp.domains(v).mkString(", ")}}.")
+      }
+    }.map(Context(_))
+
   // --- SUBPROBLEMS ---
 
   // 1. Give all solutions
   object giveSolutions extends Subproblem("solutions", 3, 4) {
+    override def answerHint = "e.g. a=1, b=0, c=2, d=4; a=1, b=2, c=0, d=1"
+    override def grader = Some(ContextSetGrader(csp.solve(), csp.variables.toSet))
     def question() = x"Give all solutions."
     def solution() = {
       val sols = csp.solve()
@@ -41,6 +54,12 @@ case class CSPProblem(csp: CSP, assignedVar: String, assignedVal: Int) extends P
 
   // 2. Give an inconsistent assignment
   object giveInconsistentAssignment extends Subproblem("inconsistent", 1, 2) {
+    override def answerHint = "e.g. a=0, b=0, c=0, d=0"
+    // many answers are right, so the constraints decide
+    override def grader = Some(VerifiedGrader[Context](
+      input => ExprParser.parseContext(input).flatMap(totalAssignment),
+      assignment => !csp.isConsistent(assignment),
+      "This assignment satisfies every constraint, so it is a solution, not an inconsistent assignment."))
     def question() = x"Give an inconsistent total variable assignment."
     def solution() = {
       csp.findInconsistentAssignment() match {
@@ -68,6 +87,9 @@ case class CSPProblem(csp: CSP, assignedVar: String, assignedVal: Int) extends P
       testPairs = Generator.chooseSome(allPairs, 4, 4, false)
     }
 
+    override def answerHint = "T or F for each box, in order, e.g. T, F, F, T"
+    override def grader = Some(BoolSeqGrader(testPairs.map { case (v, w) => csp.isArcConsistent(v, w) }))
+
     private def choice(v: String, w: String): SText =
       x"${Var(v)} is arc-consistent relative to ${Var(w)}"
 
@@ -81,6 +103,12 @@ case class CSPProblem(csp: CSP, assignedVar: String, assignedVal: Int) extends P
 
   // 4. Forward Checking
   object forwardChecking extends Subproblem("fc", 2, 3) {
+    override def answerHint = "e.g. D_b = {0, 1}, D_c = {2, 3}, D_d = {4}"
+    override def grader = {
+      val newDoms = csp.forwardChecking(assignedVar, assignedVal)
+      val remaining = csp.variables.filter(_ != assignedVar)
+      Some(EquationsGrader(remaining.map(v => (Var(s"D_$v"): Term) -> FinSet(newDoms(v)))))
+    }
     def question() = {
       x"Assume a CSP algorithm starts by assigning $assignedVal to ${Var(assignedVar)}." +
       x" How do the domains of the remaining variables change after forward checking?"

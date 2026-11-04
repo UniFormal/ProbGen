@@ -7,6 +7,8 @@ enablePlugins(ScalaJSPlugin)
 // frozen list of files -- with a relative path, newly added files stay invisible
 // to the IDE until the build is re-imported
 Compile / scalaSource := baseDirectory.value / "src"
+// the default test folder, src/test/scala, lies inside src and would be compiled as main code
+Test / scalaSource := baseDirectory.value / "test"
 
 // ScalaJS settings
 scalaJSUseMainModuleInitializer := true

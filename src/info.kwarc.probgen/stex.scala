@@ -45,15 +45,18 @@ case class SProblem(intro: STeXSyntax, subproblems: List[SSubproblem]) extends S
     s"""<div class="problem-block"><div class="problem-intro">${intro.toHTML}</div>${subproblems.map(_.toHTML).mkString("")}</div>"""
 }
 
-case class SSubproblem(pts: Int, question: SText, solution: SSolution, subId: String = "") extends SEnvironment("subproblem", 1) {
+/** @param answerHint the answer format, shown as the input's placeholder (only in HTML) */
+case class SSubproblem(pts: Int, question: SText, solution: SSolution, subId: String = "",
+                       answerHint: String = "") extends SEnvironment("subproblem", 1) {
   override def params = SParams("pts" -> pts.toString)
   def body = List(question, solution)
   override def toHTML: String = {
     val id = if (subId.nonEmpty) subId else this.hashCode.abs.toString
+    val placeholder = Html.esc(if (answerHint.nonEmpty) answerHint else "Enter your answer…")
     s"""<div class="subproblem">
       <div class="subproblem-question"><b>[$pts pts]</b> ${question.toHTML}</div>
       <div class="answer-row">
-        <input type="text" id="ans-$id" placeholder="Enter your answer…" autocomplete="off"/>
+        <input type="text" id="ans-$id" placeholder="$placeholder" autocomplete="off"/>
         <button onclick="checkAnswer('$id')">Check</button>
       </div>
       <div class="feedback" id="fb-$id"></div>

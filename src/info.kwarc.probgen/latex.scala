@@ -6,15 +6,15 @@ import org.scalajs.dom.html
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSExportTopLevel
 
-/** the problems on one sheet, used by both the page and the .tex export */
+/** the problems on one sheet, as factories so that each can be regenerated on its own */
 object Problems {
-  def all(): List[(String, Problem[?])] = List(
-    "MDP Problem"         -> MDPGenerator.make(),
-    "Probability Problem" -> BasicProbabilityProblemGenerator.make(),
-    "Search Problem"      -> SearchProblemGenerator.make(),
-    "Adversarial Search"  -> MinimaxProblemGenerator.make(),
-    "Logic Problem"       -> LogicProblemGenerator.make(),
-    "CSP Problem"         -> CSPGenerator.make()
+  val registry: List[(String, () => Problem[?])] = List(
+    "MDP Problem"         -> (() => MDPGenerator.make()),
+    "Probability Problem" -> (() => BasicProbabilityProblemGenerator.make()),
+    "Search Problem"      -> (() => SearchProblemGenerator.make()),
+    "Adversarial Search"  -> (() => MinimaxProblemGenerator.make()),
+    "Logic Problem"       -> (() => LogicProblemGenerator.make()),
+    "CSP Problem"         -> (() => CSPGenerator.make())
   )
 }
 
@@ -33,6 +33,18 @@ object TeXExport {
   def exportTeX(): Unit = {
     val panel = document.getElementById("output-panel").asInstanceOf[html.Element]
     if (panel == null) return
+    renderPanel(panel)
+    panel.style.display = "block"
+    panel.scrollIntoView()
+  }
+
+  /** re-renders an open panel, which would otherwise show the old sheet */
+  def refreshIfOpen(): Unit = {
+    val panel = document.getElementById("output-panel").asInstanceOf[html.Element]
+    if (panel != null && panel.style.display == "block") renderPanel(panel)
+  }
+
+  private def renderPanel(panel: html.Element): Unit = {
     val tex = try sheet()
               catch { case e: Throwable => "% generation failed: " + e.getMessage }
 
@@ -52,8 +64,6 @@ object TeXExport {
          |      >${Html.esc(tex)}</textarea>
          |  </div>
          |</div>""".stripMargin
-    panel.style.display = "block"
-    panel.scrollIntoView()
   }
 
   /** saves the currently shown sTeX as problem.tex */

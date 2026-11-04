@@ -415,12 +415,39 @@ object BigMax extends BigOper("max", "max")
 object BigArgMax extends BigOper("argmax", "argmax")
 object BigMin extends BigOper("min", "min")
 
-/** assigns values to free variables */
-case class Context(vals: List[(String,Expr)]) {
+/** assigns values to free variables, e.g. a=1, b=2
+  *
+  * `vals` lists the newest binding first. Two Contexts are equal if they bind the same
+  * names to the same values, in whatever order.
+  */
+case class Context(vals: List[(String,Expr)]) extends Expr {
   def apply(n: String) = vals.find(_._1 == n).getOrElse(throw EvalError("undefined variable: " + n))._2
-  def apply(v: (String,AnyVal)): Context = Context((v._1, Expr(v._2))::vals)
+  def apply(v: (String,AnyVal)): Context = {
+    val e: Expr = v._2 match {
+      case b: Boolean => BLit(b)
+      case a          => Expr(a)
+    }
+    Context((v._1, e)::vals)
+  }
   def declares(n: String) = vals.exists(_._1 == n)
-  override def toString = vals.map(v => v._1 + "=" + v._2.toString).mkString(", ")
+
+  def asMap: Map[String, Expr] = bindings.toMap
+
+  /** one binding per name, sorted by name */
+  def bindings: List[(String, Expr)] = vals.distinctBy(_._1).sortBy(_._1)
+
+  override def equals(that: Any): Boolean = that match {
+    case c: Context => asMap == c.asMap
+    case _          => false
+  }
+  override def hashCode: Int = asMap.hashCode
+
+  override def toString = bindings.map(v => v._1 + "=" + v._2.toString).mkString(", ")
+  def toSTeX = bindings.map { case (n, v) => s"\\eq{$n,${v.toSTeX}}" }.mkString(",\\;")
+  def toHTML = bindings.map { case (n, v) => s"<mrow>${Name.html(n)}<mo>=</mo>${v.toHTML}</mrow>" }
+    .mkString("<mrow>", "<mo>,</mo>", "</mrow>")
+  // the names are bound here, so only the values can contain free variables
+  def fvs = bindings.flatMap(_._2.fvs)
 }
 object Context {
   def apply(): Context = Context(Nil)
@@ -509,5 +536,30 @@ object Evaluator {
   }
   def exp(a: Int, b: Int): Int = {
     if (b == 0) 1 else a*exp(a,b-1)
+  }
+
+  /** evaluates a term to a real number; unlike `apply`, divides exactly (3/5 is 0.6) */
+  def real(t: Term, ctx: Context = Context()): Double = t match {
+    case Lit(v: Int, _)    => v.toDouble
+    case Lit(v: Double, _) => v
+    case l: Lit            => throw EvalError("not a number: " + l)
+    case Var(n) => ctx(n) match {
+      case t: Term => real(t, ctx)
+      case v       => throw EvalError("variable not a number: " + n + "=" + v)
+    }
+    case Apply(op, args) =>
+      val vs = args.map(a => real(a, ctx))
+      op match {
+        case Plus   => vs.sum
+        case Times  => vs.product
+        case Minus  => vs(0) - vs(1)
+        case Divide =>
+          if (vs(1) == 0.0) throw EvalError("division by zero") else vs(0) / vs(1)
+        case Exp    => Math.pow(vs(0), vs(1))
+        case Min    => vs.min
+        case Max    => vs.max
+        case _      => throw EvalError("cannot compute with " + op)
+      }
+    case _ => throw EvalError("not a number: " + t)
   }
 }

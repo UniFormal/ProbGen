@@ -8,6 +8,12 @@ trait ProblemGenerator[PD <: Problem[PD]] {
   def make(): PD
 }
 
+/** hands out the ids of subproblems: q1, q2, ... */
+object SubproblemIds {
+  private var counter = 0
+  def next(): String = { counter += 1; s"q$counter" }
+}
+
 // ---------------------------------------------------------------------------
 // Problem base
 // ---------------------------------------------------------------------------
@@ -19,6 +25,9 @@ trait Problem[PD <: Problem[PD]] {
 
   abstract class Subproblem(val id: String, val pts: Int, val testspace: Int) {
     subproblems = subproblems ::: List(this)
+
+    /** unique on the page, unlike `id`; used in the HTML ids */
+    val uid: String = SubproblemIds.next()
 
     def dependencies: List[String] = Nil
     def applicable(): Boolean = true
@@ -35,6 +44,9 @@ trait Problem[PD <: Problem[PD]] {
       * Override to attach a grading scheme to a question that cannot be graded automatically.
       */
     def rubric: Option[AnswerRubric] = None
+
+    /** the expected answer format, shown in the empty answer field */
+    def answerHint: String = ""
 
     /**
       * The entry point for grading an answer; callers use this, not `checkSolution`.
@@ -55,7 +67,7 @@ trait Problem[PD <: Problem[PD]] {
         case Some(g) => g.grade(input)
         case None =>
           rubric match {
-            case Some(r) => RubricGrader(() => solution().toHTML, r).grade(input)
+            case Some(r) => RubricGrader(() => solution().toHTML, r, uid).grade(input)
             case None    => NotCheckable(solution().toHTML)
           }
       }
@@ -67,7 +79,8 @@ trait Problem[PD <: Problem[PD]] {
       pts,
       question(),
       SSolution(testspace, List(solution())),
-      this.hashCode.abs.toString
+      uid,
+      answerHint
     )
   }
 

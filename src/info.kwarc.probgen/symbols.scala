@@ -11,6 +11,9 @@ object Symbols {
 
   def unicode(command: String): Option[String] = table.get(command)
 
+  /** the reverse of [[unicode]], e.g. "γ" -> "gamma" */
+  def command(character: String): Option[String] = reverse.get(character)
+
   /** replaces every LaTeX command in s that we know, e.g. "\alpha\beta" -> "αβ" */
   def replaceCommands(s: String): String =
     Command.replaceAllIn(s, m => java.util.regex.Matcher.quoteReplacement(unicode(m.group(1)).getOrElse(m.matched)))
@@ -24,13 +27,19 @@ object Symbols {
   /** symbols that are not letters in Unicode but name a value */
   private val identifierSymbols = Set("∅", "∞", "∂", "∇", "℘")
 
-  private lazy val table: Map[String, String] =
+  /** (command, character) pairs in file order */
+  private lazy val entries: List[(String, String)] =
     mmtMap.linesIterator.map(_.trim)
       .filter(l => l.startsWith("j") && l.contains("|"))
       .map { l =>
         val bar = l.indexOf('|')
         l.substring(1, bar) -> l.substring(bar + 1)
-      }.toMap
+      }.toList
+
+  private lazy val table: Map[String, String] = entries.toMap
+
+  // toMap keeps the last pair for a key, so reversing first makes the first one win
+  private lazy val reverse: Map[String, String] = entries.reverse.map(_.swap).toMap
 
   private val mmtMap = """
 jsharp|♯

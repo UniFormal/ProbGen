@@ -41,7 +41,48 @@
     #tex-btn { background: rgba(255,255,255,.16); color: white; }
     #tex-btn:hover { background: rgba(255,255,255,.3); }
 
-    main { max-width: 960px; margin: 28px auto; padding: 0 20px 60px; }
+    /* Layout: sidebar + sheet */
+    .layout {
+      display: grid; grid-template-columns: 250px minmax(0, 960px);
+      gap: 24px; justify-content: center;
+      margin: 28px auto; padding: 0 20px 60px;
+    }
+    main { min-width: 0; }
+    /* jump links: keep a little space above the target */
+    .problem-card { scroll-margin-top: 16px; }
+
+    /* Sidebar */
+    #sidebar {
+      position: sticky; top: 16px; align-self: start;
+      max-height: calc(100vh - 32px); overflow-y: auto;
+      background: white; border-radius: 12px; padding: 16px 14px;
+      box-shadow: 0 1px 6px rgba(0,0,0,.1); font-size: 13px;
+    }
+    #sidebar a { color: inherit; text-decoration: none; }
+    #sidebar a:hover { color: #2f80ed; text-decoration: underline; }
+    #sidebar ol { list-style: none; padding-left: 0; margin: 0; }
+    .sb-total {
+      font-size: 14px; padding-bottom: 10px; margin-bottom: 8px;
+      border-bottom: 2px solid #e8edf5;
+    }
+    .sb-problem { margin: 10px 0; }
+    .sb-row { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+    .sb-row a { flex: 1; }
+    .sb-score { font-weight: 400; opacity: .7; white-space: nowrap; }
+    .sb-regen {
+      border: none; background: none; cursor: pointer; color: #2f80ed;
+      font-size: 14px; line-height: 1; padding: 2px 4px; border-radius: 4px;
+    }
+    .sb-regen:hover { background: #e8f0fe; }
+
+    /* a generator that failed shows its error inside its own card */
+    .gen-error { color: #b02a2a; white-space: pre-wrap; }
+
+    /* narrow screens: sidebar above the sheet */
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: minmax(0, 1fr); }
+      #sidebar { position: static; max-height: none; }
+    }
 
     .loading { text-align: center; color: #666; padding: 60px 0; }
 
@@ -113,6 +154,9 @@
       background: rgba(74,144,217,.16); border-radius: 4px; padding: 1px 7px;
     }
     .rubric-note { font-style: italic; opacity: .8; margin-top: 4px; }
+    .rubric-list label { display: flex; gap: 8px; align-items: baseline; cursor: pointer; }
+    .rubric-list input[type=checkbox] { margin: 0; transform: translateY(1px); }
+    .rubric-total { margin-top: 6px; font-weight: 600; }
 
 
     .feedback.flash {
@@ -173,10 +217,13 @@
   </div>
 </header>
 
-<main>
-  <div id="output-panel" style="display:none"></div>
-  <div id="container"><p class="loading">Loading…</p></div>
-</main>
+<div class="layout">
+  <aside id="sidebar"></aside>
+  <main>
+    <div id="output-panel" style="display:none"></div>
+    <div id="container"><p class="loading">Loading…</p></div>
+  </main>
+</div>
 
 <script>
   document.addEventListener('keydown', function(e) {
