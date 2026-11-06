@@ -72,7 +72,12 @@ case object DDouble extends Domain {
 case object DString extends Domain {
   def apply(v: String) = Lit(v, this)
 }
-case object DOther extends Domain
+case class CartProd(doms: List[Domain]) extends Domain
+case class ListDomain(elem: Domain) extends Domain
+case object FiniteSet extends Domain
+case class ElementsOf(set: Expr) extends Domain
+case class SubsetOf(set: Expr) extends Domain
+case class ContextType(doms: List[(String,Domain)]) extends Domain
 
 /** common parent of all applications of constants/operators/connectives */
 sealed trait OperApply {

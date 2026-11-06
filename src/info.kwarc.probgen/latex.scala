@@ -9,12 +9,13 @@ import scala.scalajs.js.annotation.JSExportTopLevel
 /** the problems on one sheet, as factories so that each can be regenerated on its own */
 object Problems {
   val registry: List[(String, () => Problem[?])] = List(
-    "MDP Problem"         -> (() => MDPGenerator.make()),
-    "Probability Problem" -> (() => BasicProbabilityProblemGenerator.make()),
-    "Search Problem"      -> (() => SearchProblemGenerator.make()),
+    "Search Problems"     -> (() => SearchProblemGenerator.make()),
     "Adversarial Search"  -> (() => MinimaxProblemGenerator.make()),
-    "Logic Problem"       -> (() => LogicProblemGenerator.make()),
-    "CSP Problem"         -> (() => CSPGenerator.make())
+    "Propositional Logic" -> (() => LogicProblemGenerator.make()),
+   // "First-Order Logic"   -> (() => FOLProblemGenerator.make()),
+    "Constraint Satisfaction" -> (() => CSPGenerator.make()),
+    "Probability"         -> (() => BasicProbabilityProblemGenerator.make()),
+    "MDP"                 -> (() => MDPGenerator.make())
   )
 }
 
