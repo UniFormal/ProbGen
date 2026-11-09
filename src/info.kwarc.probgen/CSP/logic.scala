@@ -6,7 +6,7 @@ import Expr._
 /**
   * A generic Constraint Satisfaction Problem (CSP)
   */
-case class CSP(variables: List[String],domains: Map[String, List[Int]],constraints: List[Form]) {
+case class CSP(variables: List[String],domains: Map[String, List[Int]],constraints: List[Expr]) {
   /**
     * Checks if a partial assignment is consistent with all constraints.
     * A constraint is checked only if all variables in its scope are assigned.
@@ -14,7 +14,7 @@ case class CSP(variables: List[String],domains: Map[String, List[Int]],constrain
   def isConsistent(assignment: Context): Boolean = {
     constraints.forall {f =>
       if (f.fvs.forall(assignment.declares)) {
-        Evaluator(f)(using assignment)
+        Evaluator(f)(using assignment).asBool
       } else {
         true
       }
@@ -74,7 +74,7 @@ case class CSP(variables: List[String],domains: Map[String, List[Int]],constrain
         constraints.forall {f =>
           val vars = f.fvs
           if (vars.contains(assignedVar) && vars.contains(y) && vars.forall(v => v == assignedVar || v == y)) {
-            Evaluator(f)(using Context(assignedVar -> value)(y -> valY))
+            Evaluator(f)(using Context(assignedVar -> value)(y -> valY)).asBool
           } else {
             true
           }
@@ -99,7 +99,7 @@ case class CSP(variables: List[String],domains: Map[String, List[Int]],constrain
     domains(v).forall {valV =>
       domains(w).exists {valW =>
         relevantConstraints.forall {f =>
-          Evaluator(f)(using Context(v -> valV)(w -> valW))
+          Evaluator(f)(using Context(v -> valV)(w -> valW)).asBool
         }
       }
     }

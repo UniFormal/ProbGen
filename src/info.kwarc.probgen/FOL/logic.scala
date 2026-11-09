@@ -30,39 +30,39 @@ case class FOLFiniteModel(size: Int, intps: List[FOLSymIntp]) {
 object FOL {
   case class Illformed(msg: String) extends Exception
   type Ctx = List[String]
-  def wff(sig: FOLSignature): Unit = {
+  def wfs(sig: FOLSignature): Unit = {
     val ns = sig.names
     if (ns.distinct.length != ns.length) throw Illformed("symbol names not unique")
     sig.syms.foreach {s => if (s.arity < 0) throw Illformed(s"arity of ${s.name} must not be negative")}
   }
-  def wff(sig: FOLSignature, ctx: Ctx, tm: Term): Unit = tm match {
+  def wft(sig: FOLSignature, ctx: Ctx, tm: Expr): Unit = tm match {
     case Var(n) => if (!ctx.contains(n)) throw Illformed(s"variable $n is not in scope")
-    case Apply(AbstractFunSym(n),args) =>
+    case OperApply(AbstractFunSym(n),args) =>
       sig.syms.find(s => s.name == n) match {
         case None => throw Illformed(s"no function symbol $n is declared in the signature")
         case Some(sym) =>
           if (sym.predicate) throw Illformed(s"$n is a predicate symbol, not a function symbol")
           if (sym.arity != args.length) throw Illformed(s"$n must take ${sym.arity} arguments")
-          args.foreach {a => wff(sig,ctx,a)}
+          args.foreach {a => wft(sig,ctx,a)}
       }
   }
-  def wff(sig: FOLSignature, ctx: Ctx, fm: Form): Unit = fm match {
-    case Pred(Equals,Seq(l,r)) =>
+  def wff(sig: FOLSignature, ctx: Ctx, fm: Expr): Unit = fm match {
+    case OperApply(Equals,Seq(l,r)) =>
+      wft(sig,ctx,l)
+      wft(sig,ctx,r)
+    case Lit(_,DBool) =>
+    case OperApply(And|Or|Implies, Seq(l,r)) =>
       wff(sig,ctx,l)
       wff(sig,ctx,r)
-    case _: BLit =>
-    case Conn(And|Or|Implies, Seq(l,r)) =>
+    case OperApply(Neg, Seq(l)) =>
       wff(sig,ctx,l)
-      wff(sig,ctx,r)
-    case Conn(Neg, Seq(l)) =>
-      wff(sig,ctx,l)
-    case Pred(AbstractPredSym(n),args) =>
+    case OperApply(AbstractPredSym(n),args) =>
       sig.syms.find(s => s.name == n) match {
         case None => throw Illformed(s"no predicate symbol $n is declared in the signature")
         case Some(sym) =>
           if (!sym.predicate) throw Illformed(s"$n is a function symbol, not a predicate symbol")
           if (sym.arity != args.length) throw Illformed(s"$n must take ${sym.arity} arguments")
-          args.foreach {a => wff(sig,ctx,a)}
+          args.foreach {a => wft(sig,ctx,a)}
       }
     case QuantifiedForm(_,n,AbstractDomain,b) => wff(sig, n::ctx, b)
   }
@@ -76,7 +76,7 @@ object FOL {
     }
   }
 
-  def wff(sig: FOLSignature, mod: FOLFiniteModel) = {
+  def wfm(sig: FOLSignature, mod: FOLFiniteModel) = {
     if (mod.size < 0) throw Illformed("a model's universe must have a positive size")
     val syms = sig.syms.sortBy(_.name)
     val intps = mod.intps.sortBy(_.name)
@@ -87,51 +87,45 @@ object FOL {
         throw Illformed("an interpretation must take as many arguments as the arity of the interpreted symbol")
       val as = generateIntAssignments(intp.vars,mod)
       as.foreach {a =>
-        (sym.predicate,intp.body) match {
-          case (false,t: Term) =>
-            val i = Evaluator(t)(using a)
-            i match {
-              case Lit(i:Int,DInt) if (i>=0 && i<mod.size) =>
-              case _ =>
-                throw Illformed(s"the interpretation of ${sym.name} is $i, which is not in the universe")
-            }
-          case (true,f: Form) =>
-            try {Evaluator(f)(using a)}
-            catch {case _ => throw Illformed(s"the interpretation of ${sym.name} is not a Boolean")}
-          case _ => throw Illformed("a function/predicate symbol must be interpreted by universe/Boolean-valued function")
+        val b = Evaluator(intp.body)(using a)
+        if (!sym.predicate) b match {
+          case Lit(i: Int,DInt) =>
+            if (i < 0 || i >= mod.size)
+              throw Illformed(s"the interpretation of ${sym.name} is $i, which is not in the universe")
+          case _ =>
+              throw Illformed(s"the interpretation of ${sym.name} is not an integer and thus not in the universe")
+        } else b match {
+          case Lit(_,DBool) =>
+          case _ =>
+            throw Illformed(s"the interpretation of ${sym.name} is not a Boolean")
         }
       }
     }
   }
 
-  def interpret(mod: FOLFiniteModel, ass: Context, tm: Term): Lit = tm match {
+  def interpret(mod: FOLFiniteModel, ass: Context, tm: Expr): Lit = tm match {
     case Var(n) => ass(n).asInstanceOf[Lit]
-    case Apply(AbstractFunSym(f),args) =>
+    case OperApply(AbstractFunSym(f),args) =>
       val argsI = interpret(mod, ass, args)
       val fI = mod(f)
-      Evaluator(fI.body.asInstanceOf[Term])(using Context(fI.vars.zip(argsI)))
+      Evaluator(fI.body)(using Context(fI.vars.zip(argsI)))
+    case l: Lit => l
+    case OperApply(conn: COper, args) =>
+      val argsI = args.map(a => interpret(mod,ass,a))
+      Evaluator(conn(argsI*))(using Context())
+    case OperApply(Equals, Seq(l,r)) =>
+      val lI = interpret(mod,ass,l)
+      val rI = interpret(mod,ass,r)
+      Evaluator(Equals(lI,rI))(using Context())
+    case OperApply(AbstractPredSym(p),args) =>
+      val argsI = interpret(mod, ass, args)
+      val pI = mod(p)
+      Evaluator(pI.body)(using Context(pI.vars.zip(argsI)))
+    case QuantifiedForm(u,n,AbstractDomain, bd) =>
+      val assNs = mod.universe.map(i => ass(n->i))
+      val iN: Context => Boolean = a => interpret(mod, a, bd).asBool
+      val b = if (u) assNs.forall(iN) else assNs.exists(iN)
+      DBool(b)
   }
-  def interpret(mod: FOLFiniteModel, ass: Context, tms: Seq[Term]): Seq[Lit] = tms.map(t => interpret(mod,ass,t))
-
-  def interpret(mod: FOLFiniteModel, ass: Context, fm: Form): BLit = {
-    val fmI = fm match {
-      case b: BLit => b.value
-      case Conn(conn, args) =>
-        val argsI = args.map(a => interpret(mod,ass,a))
-        Evaluator(conn(argsI*))(using Context())
-      case Pred(Equals, Seq(l,r)) =>
-        val lI = interpret(mod,ass,l)
-        val rI = interpret(mod,ass,r)
-        Evaluator(Equals(lI,rI))(using Context())
-      case Pred(AbstractPredSym(p),args) =>
-        val argsI = interpret(mod, ass, args)
-        val pI = mod(p)
-        Evaluator(pI.body.asInstanceOf[Form])(using Context(pI.vars.zip(argsI)))
-      case QuantifiedForm(u,n,AbstractDomain, b) =>
-        val assNs = mod.universe.map(i => ass(n,i))
-        val iN = (a: Context) => interpret(mod, a, b) == BLit(true)
-        if (u) assNs.forall(iN) else assNs.exists(iN)
-    }
-    BLit(fmI)
-  }
+  def interpret(mod: FOLFiniteModel, ass: Context, tms: Seq[Expr]): Seq[Lit] = tms.map(t => interpret(mod,ass,t))
 }

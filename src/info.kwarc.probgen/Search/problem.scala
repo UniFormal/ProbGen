@@ -4,8 +4,8 @@ import SText._
 import Expr._
 
 case class ExpressionBasedDeterministicSearchProblem(
-                                                       numStates: Int, actions: List[Int], successor: Term, init: Int, goalForm: Form, maxSearchDepth: Int, presentArithmetically: Boolean
-                                                     ) extends SearchProblem[Int,Int] with Problem[ExpressionBasedDeterministicSearchProblem] {
+  numStates: Int, actions: List[Int], successor: Expr, init: Int, goalForm: Expr, maxSearchDepth: Int, presentArithmetically: Boolean
+) extends SearchProblem[Int,Int] with Problem[ExpressionBasedDeterministicSearchProblem] {
 
   val states  = Range(0, numStates).toList
   val initial = List(init)
@@ -18,33 +18,33 @@ case class ExpressionBasedDeterministicSearchProblem(
     if (states.contains(t)) List(t) else Nil
   }
 
-  def goal(s: Int) = Evaluator(goalForm)(using Context("s" -> s))
+  def goal(s: Int) = Evaluator(goalForm)(using Context("s" -> s)).asBool
 
-  def stateName(s: Int): Term  = if (presentArithmetically) DInt(s) else NameLit(s)
-  def actionName(a: Int): Term = if (presentArithmetically) DInt(a)
+  def stateName(s: Int): Expr  = if (presentArithmetically) DInt(s) else NameLit(s)
+  def actionName(a: Int): Expr = if (presentArithmetically) DInt(a)
   else NameLit(26 - actions.length + actions.indexOf(a))
   def namedSolutions = solutions.map(_.rename(stateName, actionName))
 
   // ── Reading names back ───────────────────────────────────────────────────
   // a typed name is looked up among the shown names, so numbers and letters both work
 
-  private def stateOf(t: Term): Either[String, Int] =
+  private def stateOf(t: Expr): Either[String, Int] =
     states.find(s => ExprCompare.sameValue(stateName(s), t))
       .toRight(s"<code>${Html.esc(ExprCompare.show(t))}</code> is not a state of this problem.")
 
-  private def actionOf(t: Term): Either[String, Int] =
+  private def actionOf(t: Expr): Either[String, Int] =
     actions.find(a => ExprCompare.sameValue(actionName(a), t))
       .toRight(s"<code>${Html.esc(ExprCompare.show(t))}</code> is not an action of this problem. " +
         s"The actions are ${Html.codeList(actions.map(a => ExprCompare.show(actionName(a))))}.")
 
   /** a sequence of actions, e.g. "x, y, x" (brackets optional) */
   private def readActions(input: String): Either[String, List[Int]] =
-    ExprParser.parseTermList(input).flatMap(ts => Grader.sequence(ts)(actionOf))
+    ExprParser.parseExprList(input).flatMap(ts => Grader.sequence(ts)(actionOf))
 
   /** how an action sequence is shown in hints */
   private def showActions(as: List[Int]): String = as.map(a => ExprCompare.show(actionName(a))).mkString(", ")
 
-  private def formatPath(p: Path[Term, Term]) = {
+  private def formatPath(p: Path[Expr, Expr]) = {
     val startState = x"${p.start}"
     val formattedSteps = p.steps.map { case (action, nextState) => 
       x" -$action-> $nextState" 
@@ -116,7 +116,7 @@ case class ExpressionBasedDeterministicSearchProblem(
     override def answerHint = "a pair (state, action), e.g. (3, 5)"
     // many pairs are right, so the transition model decides
     override def grader = Some(VerifiedGrader[(Int, Int)](
-      input => ExprParser.parseTermList(input).flatMap {
+      input => ExprParser.parseExprList(input).flatMap {
         case List(Tuple(Seq(s, a))) => for { st <- stateOf(s); ac <- actionOf(a) } yield (st, ac)
         case List(s, a)             => for { st <- stateOf(s); ac <- actionOf(a) } yield (st, ac)
         case _                      => Left("Give one pair (state, action), e.g. (3, 5).")

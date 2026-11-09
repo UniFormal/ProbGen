@@ -107,7 +107,7 @@ case class CSPProblem(csp: CSP, assignedVar: String, assignedVal: Int) extends P
     override def grader = {
       val newDoms = csp.forwardChecking(assignedVar, assignedVal)
       val remaining = csp.variables.filter(_ != assignedVar)
-      Some(EquationsGrader(remaining.map(v => (Var(s"D_$v"): Term) -> FinSet(newDoms(v)))))
+      Some(EquationsGrader(remaining.map(v => (Var(s"D_$v"): Expr) -> FinSet(newDoms(v)))))
     }
     def question() = {
       x"Assume a CSP algorithm starts by assigning $assignedVal to ${Var(assignedVar)}." +

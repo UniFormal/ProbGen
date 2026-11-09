@@ -249,9 +249,8 @@ object ExprCompare {
   def numericValue(e: Expr): Option[Double] = e match {
     case Lit(s: String, _) => s.trim.toDoubleOption // e.g. the action "-1" of a circular MDP
     case Var(n) if n.trim.toDoubleOption.isDefined => n.trim.toDoubleOption // e.g. R(s) === "-2" in MDP
-    case t: Term =>
-      try Some(Evaluator.real(t)) catch { case _: EvalError => None }
-    case _ => None
+    case t =>
+      try Some(Evaluator(t)(using Context()).asDouble) catch { case _: EvalError => None }
   }
 
   /** the name, without a font command around it: \mathtt{up} → up */
@@ -263,22 +262,20 @@ object ExprCompare {
 
   /** a standard form: two expressions mean the same value iff their standard forms are equal */
   def normalize(e: Expr): Expr = e match {
-    case t: Term    => normalizeTerm(t)
     case c: Context => normalizeContext(c)
-    case BVar(n)    => Var(nameOf(n))
-    case Pred(op, args) => Pred(op, args.map(normalizeTerm))
-    case Conn(op, args) => Conn(op, args.map(a => normalize(a).asInstanceOf[Form]))
-    case other      => other
+    case Var(n)     => Var(nameOf(n))
+    case OperApply(op, args) => OperApply(op, args.map(normalizeExpr))
+    case t          => normalizeExpr(t)
   }
 
-  def normalizeTerm(t: Term): Term = numericValue(t) match {
+  def normalizeExpr(t: Expr): Expr = numericValue(t) match {
     case Some(v) => DDouble(Math.round(v * 1e9) / 1e9 + 0.0) // + 0.0 turns -0.0 into 0.0
     case None => t match {
       case Var(n)              => Var(nameOf(n))
       case Lit(s: String, _)   => Var(nameOf(s))
-      case Apply(FinSet, args) =>
-        FinSet(args.map(normalizeTerm).distinct.sortBy(_.toString)*)
-      case Apply(op, args)     => Apply(op, args.map(normalizeTerm))
+      case FinSet(args) =>
+        FinSet(args.map(normalizeExpr).distinct.sortBy(_.toString)*)
+      case OperApply(op, args) => OperApply(op, args.map(normalizeExpr))
       case other               => other
     }
   }
@@ -298,15 +295,13 @@ object ExprCompare {
     case Some(v) => Scoring.number(v)
     case None => e match {
       case Var(n)                 => nameOf(n)
-      case BVar(n)                => nameOf(n)
       case Lit(v, _)              => nameOf(v.toString)
-      case BLit(v)                => v.toString
       case c: Context             => c.bindings.map { case (n, v) => s"${nameOf(n)}=${show(v)}" }.mkString(", ")
-      case Apply(FinSet, args)    => args.map(show).mkString("{", ", ", "}")
-      case Apply(Tuple, args)     => args.map(show).mkString("(", ", ", ")")
-      case Apply(FinSeq, args)    => args.map(show).mkString("[", ", ", "]")
-      case Apply(FunApply, args)  => show(args.head) + args.tail.map(show).mkString("(", ", ", ")")
-      case Conn(Neg, Seq(a))      => "not " + bracketed(a)
+      case FinSet(args)    => args.map(show).mkString("{", ", ", "}")
+      case Tuple(args)     => args.map(show).mkString("(", ", ", ")")
+      case FinSeq(args)    => args.map(show).mkString("[", ", ", "]")
+      case FunApply(args)  => show(args.head) + args.tail.map(show).mkString("(", ", ", ")")
+      case Neg(Seq(a))     => "not " + bracketed(a)
       case o: OperApply           => o.args.map(bracketed).mkString(s" ${symbol(o.op)} ")
       case other                  => other.toString
     }
@@ -414,7 +409,7 @@ object NumberGrader {
 
   /** a number as any arithmetic expression; of an equation, the last side counts */
   def parse(input: String): Either[String, Double] = {
-    val term: Either[String, Term] = ExprParser.parseTerm(input) match {
+    val term: Either[String, Expr] = ExprParser.parseExpr(input) match {
       case r @ Right(_) => r
       case Left(err) => ExprParser.parseForm(input) match {
         case Right(Equals(sides)) => Right(sides.last)
@@ -430,9 +425,9 @@ object NumberGrader {
 // ---- symbolic sums ---------------------------------------------------------
 
 /** "a + c + f" against an expected set of names, with partial credit */
-case class TermSumGrader(expected: Set[String], validNames: Set[String] = Set.empty) extends Grader {
-  def grade(input: String): CheckResult = Grader.onParsed(ExprParser.parseTerm(input).flatMap(TermSumGrader.summands)) { terms =>
-    TermSumGrader.unknownNames(terms, validNames) match {
+case class ExprSumGrader(expected: Set[String], validNames: Set[String] = Set.empty) extends Grader {
+  def grade(input: String): CheckResult = Grader.onParsed(ExprParser.parseExpr(input).flatMap(ExprSumGrader.summands)) { terms =>
+    ExprSumGrader.unknownNames(terms, validNames) match {
       case Some(msg) => MalformedInput(msg)
       case None      =>
         Grader.toResult(Grader.compareSets(terms, expected, (s: String) => s, false, "term", true))
@@ -440,13 +435,13 @@ case class TermSumGrader(expected: Set[String], validNames: Set[String] = Set.em
   }
 }
 
-object TermSumGrader {
+object ExprSumGrader {
   private val hint = "Write a sum of names, e.g. a + c + f."
 
   /** the names in a sum such as a + c + f; repetitions are kept so they can be flagged */
-  def summands(t: Term): Either[String, List[String]] = {
-    def parts(t: Term): List[Term] = t match {
-      case Apply(Plus, args) => args.toList.flatMap(parts)
+  def summands(t: Expr): Either[String, List[String]] = {
+    def parts(t: Expr): List[Expr] = t match {
+      case OperApply(Plus, args) => args.toList.flatMap(parts)
       case other             => List(other)
     }
     Grader.sequence(parts(t)) {
@@ -469,7 +464,7 @@ object TermSumGrader {
 case class RatioGrader(numerator: Set[String], denominator: Set[String],
                        validNames: Set[String] = Set.empty) extends Grader {
   def grade(input: String): CheckResult = Grader.onParsed(RatioGrader.parse(input)) { case (n, d) =>
-    TermSumGrader.unknownNames(n ::: d, validNames) match {
+    ExprSumGrader.unknownNames(n ::: d, validNames) match {
       case Some(msg) => MalformedInput(msg)
       case None =>
         val vn = Grader.compareSets(n, numerator, (s: String) => s, false, "term", true)
@@ -491,9 +486,9 @@ object RatioGrader {
     * a+c / b+d means a + c/b + d, which is not a quotient
     */
   def parse(input: String): Either[String, (List[String], List[String])] =
-    ExprParser.parseTerm(input).flatMap {
-      case Apply(Divide, Seq(n, d)) =>
-        for { ns <- TermSumGrader.summands(n); ds <- TermSumGrader.summands(d) } yield (ns, ds)
+    ExprParser.parseExpr(input).flatMap {
+      case OperApply(Divide, Seq(n, d)) =>
+        for { ns <- ExprSumGrader.summands(n); ds <- ExprSumGrader.summands(d) } yield (ns, ds)
       case _ => Left("Write your answer as a quotient with brackets, e.g. (a+c)/(b+d+f).")
     }
 }
@@ -503,7 +498,7 @@ object RatioGrader {
 /** a set of values, e.g. {a, c} or {(1,2), (2,3)}; braces optional, credit as in compareSets */
 case class ExprSetGrader(expected: Iterable[Expr], itemName: String = "item",
                          revealMissing: Boolean = false) extends Grader {
-  def grade(input: String): CheckResult = Grader.onParsed(ExprParser.parseTermList(input)) { items =>
+  def grade(input: String): CheckResult = Grader.onParsed(ExprParser.parseExprList(input)) { items =>
     val exp = expected.map(ExprCompare.normalize).toSet
     val ans = items.map(ExprCompare.normalize)
     Grader.toResult(Grader.compareSets(ans, exp, ExprCompare.show, revealMissing, itemName))
@@ -532,13 +527,13 @@ case class ContextSetGrader(expected: Iterable[Context], variables: Set[String] 
   * @param omitZeros labels with value 0 may be left out
   * @param label     applied to the labels on both sides before comparing
   */
-case class EquationsGrader(expected: List[(Term, Expr)], tol: Double = 1e-3,
-                           omitZeros: Boolean = false, label: Term => Term = identity) extends Grader {
+case class EquationsGrader(expected: List[(Expr, Expr)], tol: Double = 1e-3,
+                           omitZeros: Boolean = false, label: Expr => Expr = identity) extends Grader {
   def grade(input: String): CheckResult = Grader.onParsed(ExprParser.parseEquations(input)) { answered =>
     def isZero(v: Expr) = ExprCompare.numericValue(v).contains(0.0)
-    def keep(eqs: List[(Term, Expr)]) = if (omitZeros) eqs.filterNot(e => isZero(e._2)) else eqs
-    val exp = keep(expected).map { case (l, v) => ExprCompare.normalizeTerm(label(l)) -> v }.toMap
-    val ansList = keep(answered).map { case (l, v) => ExprCompare.normalizeTerm(label(l)) -> v }
+    def keep(eqs: List[(Expr, Expr)]) = if (omitZeros) eqs.filterNot(e => isZero(e._2)) else eqs
+    val exp = keep(expected).map { case (l, v) => ExprCompare.normalizeExpr(label(l)) -> v }.toMap
+    val ansList = keep(answered).map { case (l, v) => ExprCompare.normalizeExpr(label(l)) -> v }
     val ans = ansList.toMap
     if (ans.size < ansList.size) {
       val twice = ansList.groupBy(_._1).collectFirst { case (l, vs) if vs.length > 1 => l }.get

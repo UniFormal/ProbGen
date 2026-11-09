@@ -43,7 +43,7 @@ case class MinimaxProblem(tree: MinimaxTree, hiddenLeaf: Option[String])
   // ── Reading the answers ──────────────────────────────────────────────────
 
   /** a node of this tree, as typed by the student (case does not matter) */
-  private def nodeOf(t: Term): Either[String, String] = t match {
+  private def nodeOf(t: Expr): Either[String, String] = t match {
     case Var(n) if tree.names.contains(n.toUpperCase) => Right(n.toUpperCase)
     case other => Left(s"<code>${Html.esc(ExprCompare.show(other))}</code> is not a node of this tree. " +
       "Write node names separated by commas, e.g. F, G.")
@@ -55,7 +55,7 @@ case class MinimaxProblem(tree: MinimaxTree, hiddenLeaf: Option[String])
   private def labelsSatisfying(input: String, leaf: String): Either[String, Set[Int]] = {
     val t = input.trim.replace("=>", ">=").replace("=<", "<=")
     val text = if (t.headOption.exists(c => "<>=≤≥≠!".contains(c))) s"$leaf $t" else t
-    val condition: Either[String, Form] = ExprParser.parseForm(text) match {
+    val condition: Either[String, Expr] = ExprParser.parseForm(text) match {
       case r @ Right(_) => r
       case Left(err) => ExprParser.parseTerm(t) match {
         case Right(n) if ExprCompare.numericValue(n).isDefined => Right(Equals(Var(leaf), n))
@@ -69,7 +69,7 @@ case class MinimaxProblem(tree: MinimaxTree, hiddenLeaf: Option[String])
         try {
           val labels = Range(MinimaxTree.scanFrom, MinimaxTree.scanTo + 1).toList
           Right(labels.filter { v =>
-            Evaluator(f)(using Context(List(leaf -> DInt(v), leaf.toLowerCase -> DInt(v))))
+            Evaluator(f)(using Context(List(leaf -> DInt(v), leaf.toLowerCase -> DInt(v)))).asBool
           }.toSet)
         } catch { case _: EvalError => Left(example) }
     }
@@ -159,7 +159,7 @@ case class MinimaxProblem(tree: MinimaxTree, hiddenLeaf: Option[String])
       val node: Either[String, String] = ExprParser.parseTerm(input) match {
         case Right(t) => nodeOf(t)
         case Left(err) => ExprParser.parseForm(input) match {
-          case Right(Implies(Seq(BVar(from), BVar(to)))) if from.toUpperCase == rootName => nodeOf(Var(to))
+          case Right(Implies(Seq(Var(from), Var(to)))) if from.toUpperCase == rootName => nodeOf(Var(to))
           case _ => Left("Answer with the name of one node, for example B.")
         }
       }
@@ -183,7 +183,7 @@ case class MinimaxProblem(tree: MinimaxTree, hiddenLeaf: Option[String])
     override def checkSolution(input: String): CheckResult = {
       val expected = tree.pruned.toSet
       if (saysNone(input)) Incorrect(s"${count(expected.size, "node")} are pruned.")
-      else Grader.onParsed(ExprParser.parseTermList(input).flatMap(ts => Grader.sequence(ts)(nodeOf))) { answer =>
+      else Grader.onParsed(ExprParser.parseExprList(input).flatMap(ts => Grader.sequence(ts)(nodeOf))) { answer =>
         Grader.toResult(Grader.compareSets(answer, expected, identity, false, "node")) match {
           case Incorrect(h)           => Incorrect(h + " Remember that pruning a node prunes its whole subtree.")
           case PartiallyCorrect(f, h) => PartiallyCorrect(f, h + " Remember that pruning a node prunes its whole subtree.")

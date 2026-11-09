@@ -5,7 +5,7 @@ import SText.*
 /**
   * preconditions: FOL.wff(sig); FOL.wff(sig,form); FOL.wff(sig,term); FOL.wff(sig,mod)
   */
-case class FOLProblem(sig: FOLSignature, mod: FOLFiniteModel, form: Form, term: Term) extends Problem[FOLProblem] {
+case class FOLProblem(sig: FOLSignature, mod: FOLFiniteModel, form: Expr, term: Expr) extends Problem[FOLProblem] {
   def intro() = x"Consider the following signature of first-order logic: ..."
 
   object GiveFormula extends Subproblem("giveform",2,3) {
@@ -13,7 +13,7 @@ case class FOLProblem(sig: FOLSignature, mod: FOLFiniteModel, form: Form, term: 
     def solution() = x"E.g., ..."
     override def checkSolution(s: String) = {
       val t = ??? /// parse s
-      try {FOL.wff(sig,t)}
+      try {FOL.wft(sig,Nil,t)}
       catch {case FOL.Illformed(msg) => Incorrect(msg)}
       // check if all symbol occur PartiallyCorrect(0.5, "not all symbols occur in the formula")
       Correct()
@@ -25,10 +25,10 @@ case class FOLProblem(sig: FOLSignature, mod: FOLFiniteModel, form: Form, term: 
     def solution() = x"E.g., ..."
     override def checkSolution(s: String) = {
       val mod = ??? /// parse s
-      try {FOL.wff(sig,mod)}
+      try {FOL.wfm(sig,mod)}
       catch {case FOL.Illformed(msg) => Incorrect(msg)}
-      val b = FOL.interpret(mod, Context(), form)
-      if (b.value) Correct() else PartiallyCorrect(0.5, "the formula is not true")
+      val b = FOL.interpret(mod, Context(), form).asBool
+      if (b) Correct() else PartiallyCorrect(0.5, "the formula is not true")
     }
   }
 

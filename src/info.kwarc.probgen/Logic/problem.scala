@@ -9,7 +9,7 @@ import SText.*
   * [[BasicProbabilityProblem]] shape: one `intro()` plus a handful of
   * `Subproblem`s, each generating/grading itself.
   */
-case class PropLogicProblem(formula: Form) extends Problem[PropLogicProblem] {
+case class PropLogicProblem(formula: Expr) extends Problem[PropLogicProblem] {
 
   private def vars = formula.fvsD.sorted
 
@@ -21,7 +21,7 @@ case class PropLogicProblem(formula: Form) extends Problem[PropLogicProblem] {
   // structurally in the right normal form and equivalent to the original -
   // any valid CNF/DNF is accepted, not just the one particular shape toCNF/
   // toDNF happens to produce.
-  private def normalFormGrader(isRightForm: Form => Boolean, formName: String): Grader =
+  private def normalFormGrader(isRightForm: Expr => Boolean, formName: String): Grader =
     input => Grader.onParsed(ExprParser.parseForm(input)) { userForm =>
       if !isRightForm(userForm) then
         Incorrect(s"That is not in $formName - check the shape of your formula.")
@@ -48,7 +48,7 @@ case class PropLogicProblem(formula: Form) extends Problem[PropLogicProblem] {
   // aligned to fvars.
   private def allAssignments(fvars: Seq[String]): Seq[Context] = PropLogic.assignments(fvars)
 
-  private def holds(f: Form, assignment: Context): Boolean = Evaluator(f)(using assignment)
+  private def holds(f: Expr, assignment: Context): Boolean = Evaluator(f)(using assignment).asBool
 
   // Shared shape for "list all satisfying/falsifying assignments of ..." -
   // each instance generates its own fresh formula (distinct from `formula`
@@ -56,7 +56,7 @@ case class PropLogicProblem(formula: Form) extends Problem[PropLogicProblem] {
   abstract class AssignmentSubproblem(id: String, satisfying: Boolean) extends Subproblem(id, 2, 4) {
     override def answerHint = "e.g. p=true, q=false; p=false, q=true (or: none)"
     private val kind = if satisfying then "satisfying" else "falsifying"
-    var ownFormula: Form = null
+    var ownFormula: Expr = null
     private def ownVars = ownFormula.fvsD.sorted
     override def init() = {
       ownFormula = PropFormulaGenerator.generate(vars = vars, minDepth = 2, maxDepth = 4, minVars = 2)
@@ -69,7 +69,7 @@ case class PropLogicProblem(formula: Form) extends Problem[PropLogicProblem] {
     def question() =
       x"List all $kind assignments of $ownFormula - every assignment that makes it" +
         x" ${if satisfying then "true" else "false"}." +
-        x" Write each as e.g. '${Context(ownVars.toList.map(v => (v, BLit(true)))).toString}', separate" +
+        x" Write each as e.g. '${Context(ownVars.toList.map(v => (v, DBool(true)))).toString}', separate" +
         x" several with ';', and write 'none' if there are none."
 
     def solution(): SText = {
@@ -85,7 +85,7 @@ case class PropLogicProblem(formula: Form) extends Problem[PropLogicProblem] {
 
   object CheckValidity extends Subproblem("valid", 1, 1) {
     override def answerHint = "yes or no"
-    var ownFormula: Form = null
+    var ownFormula: Expr = null
     var valid: Boolean = false
 
     override def init(): Unit =
@@ -105,8 +105,8 @@ case class PropLogicProblem(formula: Form) extends Problem[PropLogicProblem] {
   // immediately in practice; capped so a bad parameter combo can't hang).
   object MakeValid extends Subproblem("makevalid", 2, 4) {
     override def answerHint = "a formula, e.g. p -> (q or p)"
-    var ownFormula: Form = null
-    var fixes: List[Form] = Nil
+    var ownFormula: Expr = null
+    var fixes: List[Expr] = Nil
 
     override def init(): Unit =
       var attempts = 0
@@ -137,7 +137,7 @@ case class PropLogicProblem(formula: Form) extends Problem[PropLogicProblem] {
 
   object CheckEquivalence extends Subproblem("equiv", 1, 1) {
     override def answerHint = "yes or no"
-    var other: Form = null
+    var other: Expr = null
     var equivalent: Boolean = false
 
     override def init(): Unit =

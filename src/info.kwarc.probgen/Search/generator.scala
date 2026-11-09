@@ -55,7 +55,7 @@ object SearchProblemGenerator
       val initialAndGoalStates = Generator.chooseSome(stateList, 2, 2, false)
       val initial = initialAndGoalStates(0)
       val goal = initialAndGoalStates(1)
-      val goalForm: Form = Equals(Var("s"), DInt(goal))
+      val goalForm = Equals(Var("s"), DInt(goal))
       // actions are numbers similar in size to the states
       var possibleActions = stateList
       val trans = genTransition(numStates, transitionModulo)
@@ -72,7 +72,7 @@ object SearchProblemGenerator
 
   // the transition function is of the form (s op a [op' i]) modulo number of states
   // where op, op' are random operators and i is a number
-  def genTransition(numStates: Int, transitionModulo: Boolean): Term = {
+  def genTransition(numStates: Int, transitionModulo: Boolean): Expr = {
     val op1 = Generator.choose(List(Exp))
     val term1 = op1(Var("s"), Var("a"))
     val lit = Generator.chooseInt(0, numStates)
@@ -97,8 +97,8 @@ object SearchProblemGenerator
     true
   }
 
-  def containsExp(t: Term): Boolean = t match {
-    case Apply(op, args) =>
+  def containsExp(t: Expr): Boolean = t match {
+    case OperApply(op, args) =>
       op == Exp || args.exists(containsExp)
     case _ =>
       false

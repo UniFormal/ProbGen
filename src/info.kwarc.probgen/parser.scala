@@ -6,18 +6,18 @@ import scala.collection.mutable.ListBuffer
 object ExprParser {
   type Parsed[A] = Either[String, A]
 
-  def parseForm(input: String): Parsed[Form] = run(input)(_.form())
+  def parseExpr(input: String): Parsed[Expr] = run(input)(_.term())
+  def parseTerm(input: String): Parsed[Expr] = parseExpr(input)
+  def parseForm(input: String): Parsed[Expr] = run(input)(_.form())
 
-  def parseTerm(input: String): Parsed[Term] = run(input)(_.term())
-
-  def parseTermList(input: String): Parsed[List[Term]] =
+  def parseExprList(input: String): Parsed[List[Expr]] =
     run(input)(p => p.separated(",")(p.term())).map {
       case List(FinSet(items)) => items.toList
       case List(FinSeq(items)) => items.toList
       case terms               => terms
     }
 
-  def parseEquations(input: String): Parsed[List[(Term, Expr)]] = run(input)(_.equations())
+  def parseEquations(input: String): Parsed[List[(Expr, Expr)]] = run(input)(_.equations())
 
   def parseContext(input: String): Parsed[Context] = parseEquations(input).flatMap(toContext)
 
@@ -28,7 +28,7 @@ object ExprParser {
   }
 
   // Turning equations into a Context 
-  private def toContext(eqs: List[(Term, Expr)]): Parsed[Context] = {
+  private def toContext(eqs: List[(Expr, Expr)]): Parsed[Context] = {
     val pairs = eqs.map {
       case (Var(n), v) => Right(n -> v)
       case (l, _)      => Left(s"The left side of each '=' must be a name, but '$l' is not.")
@@ -161,50 +161,50 @@ object ExprParser {
 
     // formulas: -> (weakest), or, and, not, then relations/atoms
 
-    def form(): Form = implies()
+    def form(): Expr = implies()
 
-    private def implies(): Form = {
+    private def implies(): Expr = {
       val left = or()
       if (accept("->")) Implies(left, implies()) else left // right-associative: a -> b -> c is a -> (b -> c)
     }
 
-    private def or(): Form = {
+    private def or(): Expr = {
       val first = and()
       if (!isSym("or")) first
       else { val fs = ListBuffer(first); while (accept("or")) fs += and(); Or(fs.toList*) }
     }
 
-    private def and(): Form = {
+    private def and(): Expr = {
       val first = not()
       if (!isSym("and")) first
       else { val fs = ListBuffer(first); while (accept("and")) fs += not(); And(fs.toList*) }
     }
 
-    private def not(): Form = if (accept("not")) Neg(not()) else atom()
+    private def not(): Expr = if (accept("not")) Neg(not()) else atom()
 
-    private def atom(): Form =
-      if (accept("true")) BLit(true)
-      else if (accept("false")) BLit(false)
+    private def atom(): Expr =
+      if (accept("true")) DBool(true)
+      else if (accept("false")) DBool(false)
       else if (isSym("(")) bracketedForm().getOrElse(relation())
       else relation()
 
     /** `( formula )`, or None (position reset) if the brackets belong to a term, as in `(a + b) < c` */
-    private def bracketedForm(): Option[Form] = {
+    private def bracketedForm(): Option[Expr] = {
       val start = i
       try {
         expect("(")
         val f = form()
         expect(")")
-        if (continuesTerm) { i = start; None } else Some(f)
+        if (continuesExpr) { i = start; None } else Some(f)
       } catch { case _: ParseError => i = start; None }
     }
 
     private val relations = Set("=", "!=", "<", "<=", ">", ">=", "in")
-    private def continuesTerm: Boolean =
+    private def continuesExpr: Boolean =
       peek.kind == Kind.Sym && (relations ++ Set("+", "-", "*", "/", "^", "%", "mod")).contains(peek.text)
 
     /** a term, or terms connected by relations; a single name on its own is a Boolean variable */
-    private def relation(): Form = {
+    private def relation(): Expr = {
       val args = ListBuffer(term())
       val ops = ListBuffer[String]()
       while (peek.kind == Kind.Sym && relations.contains(peek.text)) {
@@ -212,7 +212,7 @@ object ExprParser {
         args += term()
       }
       if (ops.isEmpty) args.head match {
-        case Var(n) => BVar(n)
+        case Var(n) => Var(n)
         case _      => fail("Expected a formula (such as p and q, or x = 1)")
       }
       else buildRelation(args.toList, ops.toList)
@@ -221,8 +221,8 @@ object ExprParser {
     /** `a < b < c` is one chained relation; mixed chains become a conjunction of pairs.
       * There are no "greater" operators, so `a > b` is stored as `b < a`.
       */
-    private def buildRelation(args: List[Term], ops: List[String]): Form = {
-      def pair(op: String, a: Term, b: Term): Form = op match {
+    private def buildRelation(args: List[Expr], ops: List[String]): Expr = {
+      def pair(op: String, a: Expr, b: Expr): Expr = op match {
         case "="  => Equals(a, b)
         case "!=" => NotEquals(a, b)
         case "<"  => Less(a, b)
@@ -245,11 +245,11 @@ object ExprParser {
 
     // terms: + - (weakest), mod, * /, unary minus, ^, %, then numbers/names/brackets
 
-    def term(): Term = additive()
+    def term(): Expr = additive()
 
-    private def additive(): Term = {
+    private def additive(): Expr = {
       var acc = modulo()
-      var sum: List[Term] = Nil // a + b + c becomes one Plus
+      var sum: List[Expr] = Nil // a + b + c becomes one Plus
       while (isSym("+") || isSym("-")) {
         if (accept("+")) {
           sum = (if (sum.isEmpty) List(acc) else sum) :+ modulo()
@@ -263,15 +263,15 @@ object ExprParser {
       acc
     }
 
-    private def modulo(): Term = {
+    private def modulo(): Expr = {
       var acc = multiplicative()
       while (accept("mod")) acc = Mod(acc, multiplicative())
       acc
     }
 
-    private def multiplicative(): Term = {
+    private def multiplicative(): Expr = {
       var acc = unary()
-      var product: List[Term] = Nil // a * b * c becomes one Times
+      var product: List[Expr] = Nil // a * b * c becomes one Times
       while (isSym("*") || isSym("/")) {
         if (accept("*")) {
           product = (if (product.isEmpty) List(acc) else product) :+ unary()
@@ -285,7 +285,7 @@ object ExprParser {
       acc
     }
 
-    private def unary(): Term =
+    private def unary(): Expr =
       if (accept("-")) unary() match {
         case Lit(v: Int, DInt)       => DInt(-v)
         case Lit(v: Double, DDouble) => DDouble(-v)
@@ -294,17 +294,17 @@ object ExprParser {
       else if (accept("+")) unary()
       else power()
 
-    private def power(): Term = {
+    private def power(): Expr = {
       val base = percent()
       if (accept("^")) Exp(base, unary()) else base // right-associative: 2^3^2 is 2^(3^2)
     }
 
-    private def percent(): Term = {
+    private def percent(): Expr = {
       val t = primary()
       if (accept("%")) Divide(t, DInt(100)) else t
     }
 
-    private def primary(): Term = peek.kind match {
+    private def primary(): Expr = peek.kind match {
       case Kind.Num =>
         val n = peek.text; i += 1
         if (n.contains(".")) DDouble(n.toDouble)
@@ -330,7 +330,7 @@ object ExprParser {
     }
 
     /** P(X=x, Y=y | Z=z): formulas, optionally followed by | and the conditions */
-    private def probability(): Term = {
+    private def probability(): Expr = {
       expect("(")
       val of = separated(",")(form())
       val conds = if (accept("|")) separated(",")(form()) else Nil
@@ -340,13 +340,13 @@ object ExprParser {
 
     // equations: left = right, separated by commas
 
-    def equations(): List[(Term, Expr)] = separated(",")(equation())
+    def equations(): List[(Expr, Expr)] = separated(",")(equation())
 
-    private def equation(): (Term, Expr) = {
+    private def equation(): (Expr, Expr) = {
       val left = term()
       expect("=")
       val right: Expr =
-        if (accept("true")) BLit(true) else if (accept("false")) BLit(false) else term()
+        if (accept("true")) DBool(true) else if (accept("false")) DBool(false) else term()
       (left, right)
     }
   }

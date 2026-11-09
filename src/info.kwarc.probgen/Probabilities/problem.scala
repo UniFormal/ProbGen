@@ -18,7 +18,7 @@ case class BasicProbabilityProblem(setting: BasicProbability) extends Problem[Ba
 
   object GiveProb extends Subproblem("giveprob", 2, 2) {
     override def answerHint = "e.g. a + c + f"
-    var form: Form = null
+    var form: Expr = null
     var result: (Int,Expr) = (0,null)
     /** the expected answer as a set of event names, e.g. Set("a","c","f") */
     var expected: Set[String] = Set.empty
@@ -33,13 +33,13 @@ case class BasicProbabilityProblem(setting: BasicProbability) extends Problem[Ba
     def solution() = x"${result._2}"
     // the answer is a sum of event names, so order does not matter and
     // listing only some of them earns partial credit
-    override def grader = Some(TermSumGrader(expected, setting.allEventLabels))
+    override def grader = Some(ExprSumGrader(expected, setting.allEventLabels))
   }
 
   object GiveCondProb extends Subproblem("givecondprob",2,2) {
     override def answerHint = "e.g. (a + c) / (a + b + c)"
-    var form: Form = null
-    var cond: Form = null
+    var form: Expr = null
+    var cond: Expr = null
     // (p, q, (sum of p terms) / (sum of q terms))
     var result: (Int,Int,Expr) = (0,0,null)
     /** the expected answer as (numerator names, denominator names) */

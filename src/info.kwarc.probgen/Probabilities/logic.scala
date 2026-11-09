@@ -33,28 +33,28 @@ class BasicProbability(val domainSizes: List[Int]) {
   /** every event name in this setting, used to spot typos in an answer */
   def allEventLabels: Set[String] = events.map(eventLabel).toSet
   /** the events making up P(f), as names */
-  def probLabels(f: Form): Set[String] = events.filter(e => eval(f, e)).map(eventLabel).toSet
+  def probLabels(f: Expr): Set[String] = events.filter(e => eval(f, e)).map(eventLabel).toSet
   /** the events of P(f | cond), as (numerator names, denominator names) */
-  def condProbLabels(f: Form, cond: Form): (Set[String], Set[String]) = {
+  def condProbLabels(f: Expr, cond: Expr): (Set[String], Set[String]) = {
     val possible = events.filter(e => eval(cond, e))
     val trueEvents = possible.filter(e => eval(f, e))
     (trueEvents.map(eventLabel).toSet, possible.map(eventLabel).toSet)
   }
 
-  def eval(form: Form, ev: Event) = {
-    Evaluator(form)(using Context(varNames.zip(ev.map(DInt(_)))))
+  def eval(form: Expr, ev: Event) = {
+    Evaluator(form)(using Context(varNames.zip(ev.map(DInt(_))))).asBool
   }
   // f must be an expression using the variables
   // P(f) in terms of event names
   // (p, sum of p terms)
-  def prob(f: Form) = {
+  def prob(f: Expr) = {
     val trueEvents = events.filter(e => eval(f,e))
     val l = trueEvents.length
     (l, if (l == 0) DInt(0) else if (l == numEvents) DInt(1) else eventSum(trueEvents))
   }
   // P(f | cond) in terms of event names
   // (p, q, (sum of p terms) / (sum of q terms))
-  def condProb(f: Form, cond: Form) = {
+  def condProb(f: Expr, cond: Expr) = {
     val possibleEvents = events.filter(e => eval(cond,e))
     val trueEvents = possibleEvents.filter(e => eval(f,e))
     val r = if (possibleEvents.isEmpty) DInt(0)

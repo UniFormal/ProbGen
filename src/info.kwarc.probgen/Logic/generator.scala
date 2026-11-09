@@ -47,7 +47,7 @@ object PropFormulaGenerator {
   def log(s: String) = println("% " + s)
 
   /** Generate one random formula using the default parameters above. */
-  def make(): Form =
+  def make(): Expr =
     generate(defaultVars, defaultMinDepth, defaultMaxDepth, defaultMinVars, defaultWeights)
 
   /** Generate a random propositional formula.
@@ -63,13 +63,13 @@ object PropFormulaGenerator {
     *                 no disjunctions/negations at all.
     */
   def generate(vars: Seq[String] = defaultVars,minDepth: Int = defaultMinDepth,maxDepth: Int = defaultMaxDepth,
-      minVars: Int = defaultMinVars,weights: ConnectiveWeights = defaultWeights): Form = {
+      minVars: Int = defaultMinVars,weights: ConnectiveWeights = defaultWeights): Expr = {
     require(vars.nonEmpty, "need at least one variable to generate a formula")
     val state = PropFormState(vars, minDepth, maxDepth, minVars min vars.length, weights)
     genForm(state)
   }
 
-  private def genForm(state: PropFormState): Form = {
+  private def genForm(state: PropFormState): Expr = {
     val atMaxDepth = state.depth >= state.maxDepth
     val leafProb: Double =
       if (state.depth < state.minDepth) 0.0
@@ -84,22 +84,22 @@ object PropFormulaGenerator {
     else genConnective(state)
   }
 
-  private def genLeaf(state: PropFormState): Form = {
+  private def genLeaf(state: PropFormState): Expr = {
     val candidates = if (state.unusedVars.nonEmpty) state.unusedVars else state.vars
     val n = Generator.choose(candidates)
     state.usedVars ::= n
-    BVar(n)
+    Var(n)
   }
 
-  private def genConnective(state: PropFormState): Form = {
+  private def genConnective(state: PropFormState): Expr = {
     val w = state.weights
     val op = Generator.chooseWeighted(
       List(And -> w.and, Or -> w.or, Implies -> w.implies, Neg -> w.not)
     )
     state.depth += 1
     op match {
-      case Neg => Conn(Neg, List(genForm(state)))
-      case _   => Conn(op, List(genForm(state), genForm(state)))
+      case Neg => Neg(genForm(state))
+      case _   => OperApply(op, List(genForm(state), genForm(state)))
     }
   }
 }

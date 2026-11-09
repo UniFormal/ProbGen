@@ -16,7 +16,7 @@ case class MDPProblem(mdp: MDP,isPolIter: Boolean) extends Problem[MDPProblem] {
   // ── For grading ──────────────────────────────────────────────────────────
 
   /** a state or an action as a term: a number, a grid cell (x, y), or an action name */
-  private def term(x: Any): Term = Expr.fromAny(x)
+  private def term(x: Any): Expr = Expr.fromAny(x)
 
   /** a state the way it is typed inside b'(…): 3, or 0, 1 for the grid cell (0, 1) */
   def typedInside(s: mdp.S): String = term(s) match {
@@ -25,7 +25,7 @@ case class MDPProblem(mdp: MDP,isPolIter: Boolean) extends Problem[MDPProblem] {
   }
 
   /** reads b'(0, 1) as b'((0, 1)) */
-  private def cellArgument(t: Term): Term = t match {
+  private def cellArgument(t: Expr): Expr = t match {
     case FunApply(Seq(f, a, b, more*)) => FunApply(f, Tuple((a :: b :: more.toList)*))
     case other                         => other
   }
@@ -201,7 +201,7 @@ case class MDPProblem(mdp: MDP,isPolIter: Boolean) extends Problem[MDPProblem] {
 
     override def answerHint = s"e.g. b'(${typedInside(sA)}) = 0.3, b'(${typedInside(sB)}) = 0.7"
     override def grader = Some(EquationsGrader(
-      newBelief(sA, sB, a).map { case (s, p) => (FunApply(Var("b'"), term(s)): Term) -> DDouble(p) },
+      newBelief(sA, sB, a).map { case (s, p) => (FunApply(Var("b'"), term(s)): Expr) -> DDouble(p) },
       omitZeros = true, label = cellArgument))
 
     def question() = x"Now assume we use the corresponding POMDP with current belief state ${"b"(!sA) === 0.5}, ${"b"(!sB) === 0.5} and apply action ${"a" === Var(mdp.actionName(a))}." +
