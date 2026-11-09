@@ -15,6 +15,9 @@ object main {
 
   private var slots: Vector[Slot] = Vector.empty
 
+  /** the index of the problem shown on the page; only one is visible at a time */
+  private var current = 0
+
   /** the last grading result of each question, by uid */
   private val results = scala.collection.mutable.Map[String, CheckResult]()
 
@@ -26,14 +29,11 @@ object main {
     if (slots.isEmpty) None else Some(SDocument(slots.map(_.fragment).toList))
 
   /** gets called when index.html is opened */
-  def main(args: Array[String]): Unit = {
-    document.getElementById("new-btn")
-      .addEventListener("click", (_: dom.Event) => generateAndRender())
-    generateAndRender()
-  }
+  def main(args: Array[String]): Unit = generateAndRender()
 
   def generateAndRender(): Unit = {
     slots = Vector.empty
+    current = 0
     results.clear()
     selfChecks.clear()
     val container = document.getElementById("container").asInstanceOf[html.Element]
@@ -69,11 +69,42 @@ object main {
         Slot(title, None, Nil, SFragment(title, List(SProblem(msg, Nil))))
     }
 
-  private def renderCard(s: Slot, i: Int): String =
-    s"""<div class="problem-card" id="card-$i">
-         <h2>${Html.esc(s.title)}</h2>
+  private def renderCard(s: Slot, i: Int): String = {
+    val active = if (i == current) " active" else ""
+    /** a button to the neighbouring problem, disabled at either end of the sheet */
+    def neighbour(j: Int, cls: String, label: String => String) =
+      if (slots.isDefinedAt(j))
+        s"""<button class="$cls" onclick="showProblem($j)">${label(Html.esc(slots(j).title))}</button>"""
+      else s"""<button class="$cls" disabled>${label("")}</button>"""
+    s"""<section class="problem-card$active" id="card-$i">
+         <div class="card-head">
+           <div>
+             <div class="card-kicker">Problem ${i + 1} of ${slots.length}</div>
+             <h2>${Html.esc(s.title)}</h2>
+           </div>
+           <div class="card-score" id="score-$i">${scoreText(s)}</div>
+         </div>
          <div class="content">${s.fragment.toHTML}</div>
-       </div>"""
+         <nav class="card-nav">
+           ${neighbour(i - 1, "nav-prev", t => s"<span class='nav-dir'>&larr; Previous</span><span class='nav-title'>$t</span>")}
+           <button class="nav-new" onclick="regenerateProblem($i)" title="Replace this problem by a new random one">&#8635; New version of this problem</button>
+           ${neighbour(i + 1, "nav-next", t => s"<span class='nav-dir'>Next &rarr;</span><span class='nav-title'>$t</span>")}
+         </nav>
+       </section>"""
+  }
+
+  /** shows problem i and hides the others */
+  @JSExportTopLevel("showProblem")
+  def showProblem(i: Int): Unit = {
+    if (!slots.isDefinedAt(i)) return
+    current = i
+    slots.indices.foreach { j =>
+      val card = document.getElementById(s"card-$j")
+      if (card != null) card.classList.toggle("active", j == i)
+    }
+    renderSidebar()
+    dom.window.scrollTo(0, 0)
+  }
 
   @JSExportTopLevel("regenerateProblem")
   def regenerateProblem(i: Int): Unit = {
@@ -82,7 +113,7 @@ object main {
     val (title, make) = Problems.registry(i)
     slots = slots.updated(i, buildSlot(title, make))
     replaceElement(s"card-$i", renderCard(slots(i), i))
-    renderSidebar()
+    renderScores()
     TeXExport.refreshIfOpen()
   }
 
@@ -101,22 +132,40 @@ object main {
 
   private def total(s: Slot): Int = s.subs.map(_.pts).sum
 
-  /** draws the sidebar from `slots` and `results`; called after every change */
+  private def scoreText(s: Slot): String = s"${Scoring.points(earned(s))} / ${total(s)} pts"
+
+  /** the scores changed: redraw the sidebar and the score in each card's header */
+  private def renderScores(): Unit = {
+    renderSidebar()
+    slots.zipWithIndex.foreach { case (s, i) =>
+      val el = document.getElementById(s"score-$i")
+      if (el != null) el.innerHTML = scoreText(s)
+    }
+  }
+
+  /** draws the sidebar from `slots`, `results` and `current`; called after every change */
   private def renderSidebar(): Unit = {
     val sidebar = document.getElementById("sidebar").asInstanceOf[html.Element]
     if (sidebar == null) return
     val problems = slots.zipWithIndex.map { case (s, i) =>
-      s"""<li class="sb-problem">
-           <div class="sb-row">
-             <a href="#card-$i">${Html.esc(s.title)}</a>
+      val active = if (i == current) " active" else ""
+      s"""<li class="sb-problem$active">
+           <button onclick="showProblem($i)">
+             <span class="sb-num">${i + 1}</span>
+             <span class="sb-title">${Html.esc(s.title)}</span>
              <span class="sb-score">${Scoring.points(earned(s))}/${total(s)}</span>
-             <button class="sb-regen" title="New instance of this problem" onclick="regenerateProblem($i)">↻</button>
-           </div>
+           </button>
          </li>"""
     }.mkString
-    val all = Scoring.points(slots.map(earned).sum)
+    val got = slots.map(earned).sum
+    val max = slots.map(total).sum
+    val pct = if (max == 0) 0 else Math.round(100 * got / max)
     sidebar.innerHTML =
-      s"""<div class="sb-total">Score <b>$all</b> / ${slots.map(total).sum}</div>
+      s"""<div class="sb-total">
+            <div class="sb-total-label">Your score</div>
+            <div class="sb-total-value"><b>${Scoring.points(got)}</b> / $max pts</div>
+            <div class="sb-bar"><div style="width:$pct%"></div></div>
+          </div>
           <ol class="sb-problems">$problems</ol>"""
   }
 
@@ -130,7 +179,7 @@ object main {
 
     findQuestion(id) match {
       case None =>
-        showFeedback(fbEl, "error", "Problem not found — try generating new problems.")
+        showFeedback(fbEl, "error", "Problem not found — try reloading the page.")
       case Some(sub) =>
         // (see answers.scala) the result knows how to present itself, so adding a new kind of result never requires a change here [This is submoptimal, but it works for now]
         val res = sub.check(inputEl.value)
@@ -139,7 +188,7 @@ object main {
         // an unreadable answer is not an attempt
         if (!res.isInstanceOf[MalformedInput]) results(id) = res
         selfChecks.remove(id)
-        renderSidebar()
+        renderScores()
     }
 
     // show animation so it is clear that the input was checked again
@@ -158,7 +207,7 @@ object main {
         results(uid) = result
         val total = document.getElementById(s"sg-$uid")
         if (total != null) total.innerHTML = result.messageHtml(sub.pts)
-        renderSidebar()
+        renderScores()
       case _ =>
     }
 

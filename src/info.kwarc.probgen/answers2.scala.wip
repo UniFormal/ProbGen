@@ -1,0 +1,17 @@
+package info.kwarc.probgen
+
+object HTML {
+    def esc(s: String): String =
+        s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+
+    def codeList(xs: Seq[String]): String =
+        xs.map(esc).map(s => s"<code>$s</code>").mkString(", ")
+}
+
+// object Scoring {
+//     def roundHalf(d: Double): Double = Math.round(d * 2.0) / 2.0
+
+//     def points(d: Double): String = {
+//         if (d == Math.floor(d) && !d.isInfinite && !d.isNaN) d.toInt.toString else d.toString
+//     }
+// }

@@ -55,12 +55,8 @@ case class MinimaxProblem(tree: MinimaxTree, hiddenLeaf: Option[String])
   private def labelsSatisfying(input: String, leaf: String): Either[String, Set[Int]] = {
     val t = input.trim.replace("=>", ">=").replace("=<", "<=")
     val text = if (t.headOption.exists(c => "<>=≤≥≠!".contains(c))) s"$leaf $t" else t
-    val condition: Either[String, Expr] = ExprParser.parseForm(text) match {
-      case r @ Right(_) => r
-      case Left(err) => ExprParser.parseTerm(t) match {
-        case Right(n) if ExprCompare.numericValue(n).isDefined => Right(Equals(Var(leaf), n))
-        case _                                                  => Left(err)
-      }
+    val condition = ExprParser.parseExpr(text).map { e =>
+      if (ExprCompare.numericValue(e).isDefined) Equals(Var(leaf), e) else e
     }
     val example = s"Write a condition on the label of $leaf, e.g. $leaf >= 4 or 3 <= $leaf <= 7."
     condition.flatMap { f =>
@@ -156,12 +152,10 @@ case class MinimaxProblem(tree: MinimaxTree, hiddenLeaf: Option[String])
 
     // a student may write the move as "A -> B", from the root
     override def checkSolution(input: String): CheckResult = {
-      val node: Either[String, String] = ExprParser.parseTerm(input) match {
-        case Right(t) => nodeOf(t)
-        case Left(err) => ExprParser.parseForm(input) match {
-          case Right(Implies(Seq(Var(from), Var(to)))) if from.toUpperCase == rootName => nodeOf(Var(to))
-          case _ => Left("Answer with the name of one node, for example B.")
-        }
+      val node: Either[String, String] = ExprParser.parseExpr(input) match {
+        case Right(Implies(Seq(Var(from), to))) if from.toUpperCase == rootName => nodeOf(to)
+        case Right(t)                                                            => nodeOf(t)
+        case Left(_) => Left("Answer with the name of one node, for example B.")
       }
       Grader.onParsed(node) { n =>
         if (n == tree.uniqueBestMove.get) Correct()

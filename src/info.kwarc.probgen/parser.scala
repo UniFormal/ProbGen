@@ -6,12 +6,10 @@ import scala.collection.mutable.ListBuffer
 object ExprParser {
   type Parsed[A] = Either[String, A]
 
-  def parseExpr(input: String): Parsed[Expr] = run(input)(_.term())
-  def parseTerm(input: String): Parsed[Expr] = parseExpr(input)
-  def parseForm(input: String): Parsed[Expr] = run(input)(_.form())
+  def parseExpr(input: String): Parsed[Expr] = run(input)(_.expr())
 
   def parseExprList(input: String): Parsed[List[Expr]] =
-    run(input)(p => p.separated(",")(p.term())).map {
+    run(input)(p => p.separated(",")(p.expr())).map {
       case List(FinSet(items)) => items.toList
       case List(FinSeq(items)) => items.toList
       case terms               => terms
@@ -159,9 +157,9 @@ object ExprParser {
       items.toList
     }
 
-    // formulas: -> (weakest), or, and, not, then relations/atoms
+    // from the weakest operator: ->, or, and, not, then relations and terms
 
-    def form(): Expr = implies()
+    def expr(): Expr = implies()
 
     private def implies(): Expr = {
       val left = or()
@@ -185,25 +183,11 @@ object ExprParser {
     private def atom(): Expr =
       if (accept("true")) DBool(true)
       else if (accept("false")) DBool(false)
-      else if (isSym("(")) bracketedForm().getOrElse(relation())
       else relation()
 
-    /** `( formula )`, or None (position reset) if the brackets belong to a term, as in `(a + b) < c` */
-    private def bracketedForm(): Option[Expr] = {
-      val start = i
-      try {
-        expect("(")
-        val f = form()
-        expect(")")
-        if (continuesExpr) { i = start; None } else Some(f)
-      } catch { case _: ParseError => i = start; None }
-    }
-
     private val relations = Set("=", "!=", "<", "<=", ">", ">=", "in")
-    private def continuesExpr: Boolean =
-      peek.kind == Kind.Sym && (relations ++ Set("+", "-", "*", "/", "^", "%", "mod")).contains(peek.text)
 
-    /** a term, or terms connected by relations; a single name on its own is a Boolean variable */
+    /** a term, or terms connected by relations */
     private def relation(): Expr = {
       val args = ListBuffer(term())
       val ops = ListBuffer[String]()
@@ -211,11 +195,7 @@ object ExprParser {
         ops += peek.text; i += 1
         args += term()
       }
-      if (ops.isEmpty) args.head match {
-        case Var(n) => Var(n)
-        case _      => fail("Expected a formula (such as p and q, or x = 1)")
-      }
-      else buildRelation(args.toList, ops.toList)
+      if (ops.isEmpty) args.head else buildRelation(args.toList, ops.toList)
     }
 
     /** `a < b < c` is one chained relation; mixed chains become a conjunction of pairs.
@@ -312,28 +292,28 @@ object ExprParser {
       case Kind.Name =>
         val n = peek.text; i += 1
         if (n == "P" && isSym("(")) probability()
-        else if (isSym("(")) { expect("("); val args = separated(",")(term()); expect(")"); Var(n)(args*) }
+        else if (isSym("(")) { expect("("); val args = separated(",")(expr()); expect(")"); Var(n)(args*) }
         else Var(n)
       case _ =>
         if (accept("(")) {
-          val items = separated(",")(term())
+          val items = separated(",")(expr())
           expect(")")
           if (items.length == 1) items.head else Tuple(items*)
         }
-        else if (accept("⟨")) { val items = separated(",")(term()); expect("⟩"); Tuple(items*) }
+        else if (accept("⟨")) { val items = separated(",")(expr()); expect("⟩"); Tuple(items*) }
         else if (accept("{")) {
           if (accept("}")) FinSet()
-          else { val items = separated(",")(term()); expect("}"); FinSet(items*) }
+          else { val items = separated(",")(expr()); expect("}"); FinSet(items*) }
         }
-        else if (accept("[")) { val items = separated(",")(term()); expect("]"); FinSeq(items*) }
+        else if (accept("[")) { val items = separated(",")(expr()); expect("]"); FinSeq(items*) }
         else fail("Expected a number, a name or a bracket")
     }
 
     /** P(X=x, Y=y | Z=z): formulas, optionally followed by | and the conditions */
     private def probability(): Expr = {
       expect("(")
-      val of = separated(",")(form())
-      val conds = if (accept("|")) separated(",")(form()) else Nil
+      val of = separated(",")(expr())
+      val conds = if (accept("|")) separated(",")(expr()) else Nil
       expect(")")
       Prob(of, conds)
     }

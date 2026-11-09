@@ -9,6 +9,7 @@ import scala.scalajs.js.annotation.JSExportTopLevel
 /** the problems on one sheet, as factories so that each can be regenerated on its own */
 object Problems {
   val registry: List[(String, () => Problem[?])] = List(
+    "Mathematical Notation" -> (() => NotationProblemGenerator.make()),
     "Search Problems"     -> (() => SearchProblemGenerator.make()),
     "Adversarial Search"  -> (() => MinimaxProblemGenerator.make()),
     "Propositional Logic" -> (() => LogicProblemGenerator.make()),
@@ -58,6 +59,7 @@ object TeXExport {
          |      <code>pdflatex problem.tex</code></span></div>
          |    <div class="panel-row">
          |      <button id="tex-dl" onclick="downloadTeX()">&#11015; Download problem.tex</button>
+         |      <button class="panel-close" onclick="document.getElementById('output-panel').style.display='none'">Close</button>
          |    </div>
          |    <textarea id="tex-out" readonly rows="24"
          |      style="width:100%;margin-top:10px;font-family:'Courier New',monospace;

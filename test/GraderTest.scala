@@ -26,6 +26,8 @@ class GraderTest extends AnyFunSuite {
     assert(sameValue(DString("-1"), DInt(-1)))       // circular MDP actions are strings
     assert(sameValue(Var("-2"), DInt(-2)))           // MDP writes R(s) === "-2"
     assert(sameValue(FinSet(Var("a"), Var("b")), FinSet(Var("b"), Var("a"), Var("a"))))
+    assert(sameValue(FinSet(DInt(2), DInt(1)), FinSet(DInt(1), DInt(2))))
+    assert(ExprCompare.normalize(FinSet(Var("b"), Var("a"))) == ExprCompare.normalize(FinSet(Var("a"), Var("b"))))
     assert(sameValue(Tuple(DInt(0), DInt(1)), Tuple(DDouble(0.0), DDouble(1.0))))
     assert(!sameValue(Tuple(DInt(0), DInt(1)), Tuple(DInt(1), DInt(0))))
     assert(!sameValue(Var("a"), Var("b")))
@@ -57,8 +59,8 @@ class GraderTest extends AnyFunSuite {
 
   // ── sums and quotients of event names (Probabilities) ─────────────────────
 
-  test("TermSumGrader: order free, partial credit, typos and repetitions") {
-    val g = TermSumGrader(Set("a", "c", "f"), Set("a", "b", "c", "d", "e", "f"))
+  test("ExprSumGrader: order free, partial credit, typos and repetitions") {
+    val g = ExprSumGrader(Set("a", "c", "f"), Set("a", "b", "c", "d", "e", "f"))
     correct(g.grade("a + c + f"))
     correct(g.grade("f+a+c"))
     correct(g.grade("(a + c) + f"))

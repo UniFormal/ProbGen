@@ -6,11 +6,11 @@ import org.scalatest.funsuite.AnyFunSuite
 class ExprParserTest extends AnyFunSuite {
   import ExprParser.*
 
-  private val p = BVar("p"); private val q = BVar("q"); private val r = BVar("r")
+  private val p = Var("p"); private val q = Var("q"); private val r = Var("r")
   private val a = Var("a"); private val b = Var("b"); private val c = Var("c")
 
-  private def form(s: String): Form = parseForm(s).fold(e => fail(s"'$s': $e"), identity)
-  private def term(s: String): Term = parseTerm(s).fold(e => fail(s"'$s': $e"), identity)
+  private def form(s: String): Expr = parseExpr(s).fold(e => fail(s"'$s': $e"), identity)
+  private def term(s: String): Expr = parseExpr(s).fold(e => fail(s"'$s': $e"), identity)
 
   // ── formulas ──────────────────────────────────────────────────────────────
 
@@ -37,7 +37,7 @@ class ExprParserTest extends AnyFunSuite {
   }
 
   test("true, false and relations") {
-    assert(form("true or p") == Or(BLit(true), p))
+    assert(form("true or p") == Or(DBool(true), p))
     assert(form("x = 1") == Equals(Var("x"), DInt(1)))
     assert(form("x != 1") == NotEquals(Var("x"), DInt(1)))
     assert(form("x ≠ 1") == NotEquals(Var("x"), DInt(1)))
@@ -68,7 +68,7 @@ class ExprParserTest extends AnyFunSuite {
     assert(term(".5") == DDouble(0.5))
     assert(term("-2") == DInt(-2))
     assert(term("60%") == Divide(DInt(60), DInt(100)))
-    assert(Evaluator.real(term("60%")) == 0.6)
+    assert(ExprCompare.numericValue(term("60%")) == Some(0.6))
   }
 
   test("arithmetic: precedence and one node per sum/product") {
@@ -88,9 +88,9 @@ class ExprParserTest extends AnyFunSuite {
   }
 
   test("the values of typical answers") {
-    assert(Evaluator.real(term("0.8 * 0.8")) == 0.8 * 0.8)
-    assert(Evaluator.real(term("16/25")) == 0.64)
-    assert(Evaluator.real(term("-2 + 0.5 * 4")) == 0.0)
+    assert(ExprCompare.numericValue(term("0.8 * 0.8")) == Some(0.8 * 0.8))
+    assert(ExprCompare.numericValue(term("16/25")) == Some(0.64))
+    assert(ExprCompare.numericValue(term("-2 + 0.5 * 4")) == Some(0.0))
   }
 
   test("names: primes, subscripts, Greek letters as LaTeX or Unicode") {
@@ -151,13 +151,13 @@ class ExprParserTest extends AnyFunSuite {
 
   test("unreadable answers give a message") {
     def msg[A](r: Either[String, A]): String = r.fold(identity, x => fail(s"parsed as $x"))
-    assert(msg(parseForm("p and")).contains("ends there"))
-    assert(msg(parseForm("p q")).contains("found 'q'"))
-    assert(msg(parseForm("1 + 2")).contains("Expected a formula"))
-    assert(msg(parseTerm("(a, b")).contains("Expected ')'"))
-    assert(msg(parseTerm("a @ b")).contains("'@'"))
-    assert(msg(parseTerm("\\foo")).contains("Unknown command"))
-    assert(msg(parseTerm("")).contains("enter an answer"))
+    assert(msg(parseExpr("p and")).contains("ends there"))
+    assert(msg(parseExpr("p q")).contains("found 'q'"))
+    assert(parseExpr("1 + 2") == Right(Plus(DInt(1), DInt(2)))) // any expression, there is no separate formula grammar
+    assert(msg(parseExpr("(a, b")).contains("Expected ')'"))
+    assert(msg(parseExpr("a @ b")).contains("'@'"))
+    assert(msg(parseExpr("\\foo")).contains("Unknown command"))
+    assert(msg(parseExpr("")).contains("enter an answer"))
     assert(msg(parseContext("a = 1, a = 2")).contains("more than one value"))
     assert(msg(parseContext("1 = a")).contains("must be a name"))
   }
@@ -165,35 +165,31 @@ class ExprParserTest extends AnyFunSuite {
   // ── round trips: everything the generators produce can be typed back in ──
 
   /** an expression in the syntax a student would type, fully bracketed */
+  private val symbol: Map[Oper, String] = Map(
+    And -> "and", Or -> "or", Implies -> "->",
+    Equals -> "=", Less -> "<", LessEq -> "<=", NotEquals -> "!=", InSet -> "in",
+    Plus -> "+", Minus -> "-", Times -> "*", Divide -> "/", Exp -> "^", Mod -> "mod")
+
   private def typed(e: Expr): String = e match {
-    case BLit(v)              => v.toString
-    case BVar(n)              => n
-    case Var(n)               => n
-    case Lit(v, _)            => v.toString
-    case Conn(Neg, Seq(x))    => s"not (${typed(x)})"
-    case Conn(op, args)       =>
-      val word = op match { case And => "and"; case Or => "or"; case _ => "->" }
-      args.map(x => s"(${typed(x)})").mkString(s" $word ")
-    case Pred(op, Seq(x, y))  =>
-      val sym = op match { case Equals => "="; case Less => "<"; case LessEq => "<="; case NotEquals => "!="; case _ => "in" }
-      s"(${typed(x)}) $sym (${typed(y)})"
-    case Apply(op, Seq(x, y)) =>
-      val sym = op match { case Plus => "+"; case Minus => "-"; case Times => "*"; case Divide => "/"; case Exp => "^"; case _ => "mod" }
-      s"(${typed(x)}) $sym (${typed(y)})"
-    case other                => fail(s"no typed form for $other")
+    case Var(n)                        => n
+    case Lit(v, _)                     => v.toString
+    case OperApply(Neg, Seq(x))        => s"not (${typed(x)})"
+    case OperApply(op, args) if symbol.contains(op) =>
+      args.map(x => s"(${typed(x)})").mkString(s" ${symbol(op)} ")
+    case other                         => fail(s"no typed form for $other")
   }
 
   test("round trip: random Logic formulas") {
     for (_ <- 1 to 300) {
       val f = PropFormulaGenerator.generate(List("p", "q", "r"), 1, 4, 2)
-      assert(parseForm(typed(f)) == Right(f), typed(f))
+      assert(parseExpr(typed(f)) == Right(f), typed(f))
     }
   }
 
   test("round trip: random Search transition terms") {
     for (_ <- 1 to 100) {
       val t = SearchProblemGenerator.genTransition(8, Generator.chooseBoolean(0.5))
-      assert(parseTerm(typed(t)) == Right(t), typed(t))
+      assert(parseExpr(typed(t)) == Right(t), typed(t))
     }
   }
 }

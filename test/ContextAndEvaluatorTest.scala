@@ -33,19 +33,34 @@ class ContextAndEvaluatorTest extends AnyFunSuite {
     assert(c.toHTML.contains("<mi>a</mi><mo>=</mo><mn>1</mn>"))
   }
 
-  test("Evaluator.real computes with decimals and divides exactly") {
-    assert(Evaluator.real(Divide(DInt(3), DInt(5))) == 0.6)
-    assert(Evaluator.real(Times(DDouble(0.8), DDouble(0.8))) == 0.8 * 0.8)
-    assert(Evaluator.real(Plus(DInt(1), DDouble(0.5), DInt(2))) == 3.5)
-    assert(Evaluator.real(Minus(DInt(1), DDouble(0.25))) == 0.75)
-    assert(Evaluator.real(Exp(DInt(2), DInt(10))) == 1024.0)
-    assert(Evaluator.real(Var("x"), Context()("x" -> 4)) == 4.0)
+  test("numeric values (what grading uses) compute with decimals and divide exactly") {
+    import ExprCompare.numericValue
+    assert(numericValue(Divide(DInt(3), DInt(5))) == Some(0.6))
+    assert(numericValue(Divide(DInt(16), DInt(25))) == Some(0.64))
+    assert(numericValue(Times(DDouble(0.8), DDouble(0.8))) == Some(0.8 * 0.8))
+    assert(numericValue(Plus(DInt(1), DDouble(0.5), DInt(2))) == Some(3.5))
+    assert(numericValue(Minus(DInt(1), DDouble(0.25))) == Some(0.75))
+    assert(numericValue(Exp(DInt(2), DInt(10))) == Some(1024.0))
   }
 
-  test("Evaluator.real reports what it cannot compute") {
-    assertThrows[EvalError](Evaluator.real(Divide(DInt(1), DInt(0))))
-    assertThrows[EvalError](Evaluator.real(DString("a")))
-    assertThrows[EvalError](Evaluator.real(Var("x")))
+  test("numeric values: anything that is not a number gives None, never an exception") {
+    import ExprCompare.numericValue
+    assert(numericValue(Divide(DInt(1), DInt(0))) == None)
+    assert(numericValue(DString("a")) == None)
+    assert(numericValue(Var("x")) == None)
+    assert(numericValue(FinSet(DInt(3), DInt(5))) == None)
+    assert(numericValue(Tuple(DInt(0), DInt(1))) == None)
+    assert(numericValue(DBool(true)) == None)
+  }
+
+  test("integer arithmetic stays integer in the Evaluator (Search and CSP need it)") {
+    assert(Evaluator(Divide(DInt(7), DInt(2)))(using Context()) == DInt(3))
+    assert(Evaluator(Mod(Minus(DInt(1), DInt(3)), DInt(5)))(using Context()) == DInt(3))
+  }
+
+  test("decimal literals can be displayed") {
+    assert(DDouble(0.5).toHTML.contains("0.5"))
+    assert(DDouble(0.5).toSTeX == "0.5")
   }
 
   test("Symbols: from a typed character back to its LaTeX command") {

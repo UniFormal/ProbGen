@@ -22,7 +22,7 @@ case class PropLogicProblem(formula: Expr) extends Problem[PropLogicProblem] {
   // any valid CNF/DNF is accepted, not just the one particular shape toCNF/
   // toDNF happens to produce.
   private def normalFormGrader(isRightForm: Expr => Boolean, formName: String): Grader =
-    input => Grader.onParsed(ExprParser.parseForm(input)) { userForm =>
+    input => Grader.onParsed(ExprParser.parseExpr(input)) { userForm =>
       if !isRightForm(userForm) then
         Incorrect(s"That is not in $formName - check the shape of your formula.")
       else if !PropLogic.isEquivalent(userForm, formula) then
@@ -127,7 +127,7 @@ case class PropLogicProblem(formula: Expr) extends Problem[PropLogicProblem] {
       case many         => SSnippet(List(x"Any one of:", SItemize(many.map(f => ~f)*)))
 
     // flattened, since the page shows (p or q) or r as p ∨ q ∨ r
-    override def grader = Some(input => Grader.onParsed(ExprParser.parseForm(input)) { userForm =>
+    override def grader = Some(input => Grader.onParsed(ExprParser.parseExpr(input)) { userForm =>
       if !PropLogic.isValid(userForm) then Incorrect("Your formula is not valid.")
       else if !fixes.map(PropLogic.flatten).contains(PropLogic.flatten(userForm)) then
         Incorrect("Your formula is valid, but it is not the original with exactly one connective changed.")

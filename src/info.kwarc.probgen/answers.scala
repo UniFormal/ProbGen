@@ -1,6 +1,7 @@
 package info.kwarc.probgen
 
 import scala.collection.mutable.ListBuffer
+import scala.util.control.NonFatal
 
 // Small shared helpers
 
@@ -250,7 +251,16 @@ object ExprCompare {
     case Lit(s: String, _) => s.trim.toDoubleOption // e.g. the action "-1" of a circular MDP
     case Var(n) if n.trim.toDoubleOption.isDefined => n.trim.toDoubleOption // e.g. R(s) === "-2" in MDP
     case t =>
-      try Some(Evaluator(t)(using Context()).asDouble) catch { case _: EvalError => None }
+      // integer literals as decimals, so that / divides exactly (3/5 is 0.6, not 0);
+      // anything that is not a number (a set, a tuple, an assignment) gives None
+      try Some(Evaluator(asDecimals(t))(using Context()).asDouble)
+      catch { case NonFatal(_) => None }
+  }
+
+  private def asDecimals(e: Expr): Expr = e match {
+    case Lit(v: Int, _: IntegerDomain) => DDouble(v.toDouble)
+    case OperApply(op, args)           => OperApply(op, args.map(asDecimals))
+    case other                         => other
   }
 
   /** the name, without a font command around it: \mathtt{up} → up */
@@ -263,8 +273,6 @@ object ExprCompare {
   /** a standard form: two expressions mean the same value iff their standard forms are equal */
   def normalize(e: Expr): Expr = e match {
     case c: Context => normalizeContext(c)
-    case Var(n)     => Var(nameOf(n))
-    case OperApply(op, args) => OperApply(op, args.map(normalizeExpr))
     case t          => normalizeExpr(t)
   }
 
@@ -409,12 +417,9 @@ object NumberGrader {
 
   /** a number as any arithmetic expression; of an equation, the last side counts */
   def parse(input: String): Either[String, Double] = {
-    val term: Either[String, Expr] = ExprParser.parseExpr(input) match {
-      case r @ Right(_) => r
-      case Left(err) => ExprParser.parseForm(input) match {
-        case Right(Equals(sides)) => Right(sides.last)
-        case _                    => Left(err)
-      }
+    val term = ExprParser.parseExpr(input).map {
+      case Equals(sides) => sides.last
+      case t             => t
     }
     term.flatMap { t =>
       ExprCompare.numericValue(t).toRight(s"'${Html.esc(input.trim)}' is not a number. $hint")

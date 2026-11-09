@@ -4,8 +4,8 @@ import org.scalatest.funsuite.AnyFunSuite
 
 /** the propositional-logic solver that the Logic problem's answers and grading rely on */
 class LogicSolverTest extends AnyFunSuite {
-  private val p = BVar("p")
-  private val q = BVar("q")
+  private val p = Var("p")
+  private val q = Var("q")
 
   test("assignments enumerates all 2^n truth assignments") {
     assert(PropLogic.assignments(List("p", "q")).length == 4)
@@ -13,7 +13,7 @@ class LogicSolverTest extends AnyFunSuite {
   }
 
   test("a Context can bind a variable to a Boolean") {
-    assert(Context()("p" -> true)("p") == BLit(true))
+    assert(Context()("p" -> true)("p") == DBool(true))
   }
 
   test("validity") {

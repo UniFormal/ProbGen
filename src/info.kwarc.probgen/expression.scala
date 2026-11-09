@@ -134,7 +134,7 @@ case class Lit(value: Any, domain: LiteralDomain) extends Expr {
   def toHTML = domain match {
     case DBool => s"<mi>${if (asBool) "true" else "false"}</mi>"
     case DString => Name.html(value.toString)
-    case _:IntegerDomain => Name.number(value.toString)
+    case _:IntegerDomain | DDouble => Name.number(value.toString)
   }
 }
 
@@ -273,14 +273,15 @@ sealed abstract class Oper {
 object Oper {
   /** binding strength for MathML rendering: higher binds tighter */
   def precedence(op: Oper): Int = op match {
+    case MapsTo       => 5
     case Implies      => 10
     case Or           => 20
     case And          => 30
     case Neg          => 40
     case _: FOper     => 50
-    case Plus | Minus => 60
+    case Plus | Minus | Union | SetDiff => 60
     case Mod          => 70
-    case Times | Cart => 80
+    case Times | Cart | Intersection => 80
     case Exp          => 90
     case _            => 100
   }
@@ -376,6 +377,11 @@ object Max extends TOper("intmax", AppliedOperator("max"), 0) {
 }
 
 object Cart extends TOper("cart", Infix("×"), 0)
+object Intersection extends TOper("intersect", Infix("∩"), 0)
+object Union extends TOper("union", Infix("∪"), 0)
+object SetDiff extends TOper("setdiff", Infix("∖"), -1, Some(2))
+object Card extends TOper("card", FencedOperator("|","|"), -1, Some(1))
+object MapsTo extends TOper("map", Infix("↦"), -1, Some(2))
 object FinSet extends TOper("set", FencedOperator("{","}"), 0)
 object Tuple extends TOper("tup", FencedOperator("⟨","⟩"), 0) 
 object FinSeq extends TOper("seq", FencedOperator("",""), 0)

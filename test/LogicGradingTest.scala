@@ -10,7 +10,7 @@ class LogicGradingTest extends AnyFunSuite {
   private def fresh(): PropLogicProblem = { val p = LogicProblemGenerator.make(); p.chooseSubproblems(); p }
   private def typed(e: Expr) = ExprCompare.show(e)
   private val runs = 40
-  private val p = BVar("p"); private val q = BVar("q")
+  private val p = Var("p"); private val q = Var("q")
 
   test("CNF and DNF: any equivalent formula of the right shape") {
     for (_ <- 1 to runs) {
