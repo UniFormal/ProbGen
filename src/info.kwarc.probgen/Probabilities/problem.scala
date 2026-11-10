@@ -3,8 +3,14 @@ package info.kwarc.probgen
 import SText._
 import Expr._
 
+case class ConcreteProbabilityProblem(sigDist: RandDist) extends Problem[ConcreteProbabilityProblem] {
+  def intro() = {
+    x"Consider the following joint probability distribution of some random variables." //TODO
+  }
+}
+
 /**   */
-case class BasicProbabilityProblem(setting: BasicProbability) extends Problem[BasicProbabilityProblem] {
+case class AbstractProbabilityProblem(setting: BasicProbability) extends Problem[AbstractProbabilityProblem] {
   def intro() = {
     val varsLower = setting.varNames.map(_.toLowerCase)
     val cellHead = ~ Prob(setting.varNames.zip(varsLower).map({case (rv,v) => rv === v}), Nil)
