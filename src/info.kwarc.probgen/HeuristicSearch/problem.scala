@@ -2,8 +2,11 @@ package info.kwarc.probgen
 
 import SText._
 
-case class HeuristicSearchProblem() extends Problem[HeuristicSearchProblem] {
-  def intro() = x"This is a placeholder for a heuristic search exercise."
+case class HeuristicSearchProblem(graph: HeuristicSearchGraph) extends Problem[HeuristicSearchProblem] {
+  def intro() = SSnippet(List(
+    x"Each node shows its name and heuristic value. Each directed edge is labeled with its cost.",
+    SHeuristicSearchTree(graph)
+  ), "\n")
 
   object placeholder extends Subproblem("heuristic-search-placeholder", 1, 1) {
     override def answerHint = "a number"
