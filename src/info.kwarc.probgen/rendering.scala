@@ -69,7 +69,13 @@ case class STreeDiagram[N](
       val (fx, fd) = posOf(f)
       val (tx, td) = posOf(t)
       cost(f, t).map { v =>
-        s"""<text x="${(cx(fx) + cx(tx)) / 2 + 10}" y="${(cy(fd) + cy(td)) / 2}" text-anchor="middle" font-family="Georgia, serif" font-size="14" fill="$ink" stroke="white" stroke-width="4" paint-order="stroke">$v</text>"""
+        val dx = cx(tx) - cx(fx)
+        val dy = cy(td) - cy(fd)
+        // Offset from the midpoint toward the outside of the branch.
+        val offset = (if (dx < 0) -14.0 else 14.0) / math.hypot(dx, dy)
+        val x = (cx(fx) + cx(tx)) / 2 + offset * dy
+        val y = (cy(fd) + cy(td)) / 2 - offset * dx
+        s"""<text x="$x" y="$y" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="17" fill="$ink">$v</text>"""
       }
     }
     val arrows = if (!directed) Nil else edges.map { case (f, t) =>
@@ -88,7 +94,10 @@ case class STreeDiagram[N](
       s"""<circle cx="${cx(x)}" cy="${cy(d)}" r="$radius" fill="#fff" stroke="$ink" stroke-width="1.4"/>"""
     }
     val names = placed.map { case (n, x, d) =>
-      s"""<text x="${cx(x)}" y="${cy(d)}" text-anchor="middle" dominant-baseline="central" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="15" fill="$ink">${Html.esc(nodeLabel(n))}</text>"""
+      val typography =
+        if (directed) """font-family="Arial, sans-serif" font-size="19""""
+        else """font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="15""""
+      s"""<text x="${cx(x)}" y="${cy(d)}" text-anchor="middle" dominant-baseline="central" $typography fill="$ink">${Html.esc(nodeLabel(n))}</text>"""
     }
     val labels = placed.flatMap { case (n, x, d) =>
       labelBelow(n).map { v =>
