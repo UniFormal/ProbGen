@@ -7,6 +7,7 @@ abstract class Domain
 /** finite domain with a canonical ordering of its elements, e.g., to write a finite maps as vectors */
 trait OrderedDomain {
   def values: List[Any]
+  def size = values.length
 }
 
 /** an abstract domain, e.g., for FOL */
@@ -29,8 +30,9 @@ case object DInt extends IntegerDomain
 case object DDouble extends LiteralDomain {
   def apply(v: Double) = Lit(v, this)
 }
-case object DBool extends LiteralDomain {
+case object DBool extends LiteralDomain with OrderedDomain {
   def apply(v: Boolean) = Lit(v, this)
+  def values = List(apply(false),apply(true))
 }
 case object DString extends LiteralDomain {
   def apply(v: String) = Lit(v, this)
@@ -39,7 +41,7 @@ case object DString extends LiteralDomain {
 /* complex types */
 
 /** cartesian product of types */
-case class CartProd(doms: List[Domain]) extends Domain
+case class CartProd(doms: Domain*) extends Domain
 /** lists over a type */
 case class ListDomain(elem: Domain) extends Domain
 /** the type of sets */
@@ -221,12 +223,6 @@ object Name {
       if (Symbols.isIdentifier(u)) s"<mi>$u</mi>" else s"<mo>$u</mo>"
     case _ => s"<mi>${Html.esc(Symbols.replaceCommands(t))}</mi>"
   }
-}
-
-object NameLit {
-  // 0 -> a, 1 -> b, ...
-  def apply(i: Int): Lit = DString((97+i).toChar.toString)
-  def applyUpper(i: Int): Lit = DString((65+i).toChar.toString)
 }
 
 /** operators */

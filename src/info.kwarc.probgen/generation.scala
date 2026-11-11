@@ -57,6 +57,11 @@ object Generator {
     val n = Random.nextInt(max+1-min)
     min+n
   }
+  /** choose a float from an interval */
+  def chooseFloat(min: Double,max: Double): Double = {
+    val r = Random.nextFloat()
+    min+r*(max-min)
+  }
   /** choose one value from a list of (value, weight) pairs; the weights are
     * relative frequencies ("percentages") - they don't need to sum to any
     * particular total, they get normalized against their own sum */
