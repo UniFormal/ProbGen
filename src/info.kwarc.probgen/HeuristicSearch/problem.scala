@@ -2,10 +2,10 @@ package info.kwarc.probgen
 
 import SText._
 
-case class HeuristicSearchProblem(graph: HeuristicSearchGraph) extends Problem[HeuristicSearchProblem] {
+case class HeuristicSearchProblem(graph: HeuristicSearchGraph, positions: Map[String, (Double, Double)]) extends Problem[HeuristicSearchProblem] {
   def intro() = SSnippet(List(
     x"Each node shows its name and heuristic value. Each directed edge is labeled with its cost.",
-    SHeuristicSearchTree(graph)
+    SHeuristicSearchGraph(graph, positions)
   ), "\n")
 
   object placeholder extends Subproblem("heuristic-search-placeholder", 1, 1) {

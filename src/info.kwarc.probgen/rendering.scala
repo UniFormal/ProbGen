@@ -31,11 +31,27 @@ case class STreeDiagram[N](
     go(tree, 0)._2
   }
 
-  private lazy val posOf: Map[String, (Double, Int)] =
-    placed.map(p => name(p._1) -> (p._2, p._3)).toMap
+  private lazy val diagram = SGraphDiagram(
+    placed.map { case (node, x, depth) => (node, x, depth.toDouble) },
+    placed.flatMap(p => children(p._1).map(c => (name(p._1), name(c)))),
+    name, labelBelow, heuristic, cost, directed
+  )
+  def toHTML = diagram.toHTML
+  override def toString = diagram.toString
+}
 
-  private lazy val edges: List[(String, String)] =
-    placed.flatMap(p => children(p._1).map(c => (name(p._1), name(c))))
+/** Draws each positioned node once, independently of its incoming edges. */
+case class SGraphDiagram[N](
+    placed: List[(N, Double, Double)],
+    edges: List[(String, String)],
+    name: N => String,
+    labelBelow: N => Option[Int],
+    heuristic: N => Option[Int],
+    cost: (String, String) => Option[Int],
+    directed: Boolean = false
+) extends SText {
+  private lazy val posOf: Map[String, (Double, Double)] =
+    placed.map(p => name(p._1) -> (p._2, p._3)).toMap
 
   private lazy val maxX = placed.map(_._2).max
   private lazy val maxDepth = placed.map(_._3).max
@@ -49,7 +65,7 @@ case class STreeDiagram[N](
   private val ink = "#1a1a2e"
 
   private def cx(x: Double) = pad + radius + x * unitX
-  private def cy(d: Int) = pad + radius + d * unitY
+  private def cy(d: Double) = pad + radius + d * unitY
 
   private def nodeLabel(n: N): String =
     name(n) + heuristic(n).map(v => s": $v").getOrElse("")
