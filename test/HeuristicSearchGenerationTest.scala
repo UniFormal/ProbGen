@@ -31,7 +31,7 @@ class HeuristicSearchGenerationTest extends AnyFunSuite {
 
       val rowOf = rows.zipWithIndex.flatMap { case (row, index) => row.map(_ -> index) }.toMap
       val horizontal = graph.edges.filter(e => rowOf(e.from) == rowOf(e.to))
-      assert((1 to rows.map(_.size - 1).sum).contains(horizontal.size))
+      assert(horizontal.size <= rows.map(_.size - 1).sum)
       assert(horizontal.forall { edge =>
         val row = rows(rowOf(edge.from))
         row.indexOf(edge.to) == row.indexOf(edge.from) + 1

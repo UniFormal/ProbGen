@@ -30,7 +30,7 @@ object HeuristicSearchProblemGenerator extends ProblemGenerator[HeuristicSearchP
     val possibleSideways = rows.flatMap { row =>
       row.zip(row.tail).map { case (from, to) => HeuristicSearchEdge(from, to) }
     }
-    val sideways = Generator.chooseSome(possibleSideways, 1, possibleSideways.size, allowRep = false)
+    val sideways = Generator.chooseSome(possibleSideways, 0, possibleSideways.size, allowRep = false)
     val available = connections.flatMap(_._2)
     val extra = if (available.nonEmpty && Generator.chooseBoolean(0.5)) List(Generator.choose(available))
                 else Nil
