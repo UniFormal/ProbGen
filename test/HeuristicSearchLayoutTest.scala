@@ -56,9 +56,9 @@ class HeuristicSearchLayoutTest extends AnyFunSuite {
   }
 
   test("a narrow bottom row is centered with the terminal at its right end") {
-    val nodes = ('A' to 'F').map(n => HeuristicSearchNode(n.toString, 0)).toList
+    val nodes = ('A' to 'F').map(n => HeuristicSearchNode(n.toString, Some(0))).toList
     val edges = List(("A", "B"), ("A", "C"), ("A", "D"), ("B", "E"), ("C", "F"))
-      .map { case (from, to) => HeuristicSearchEdge(from, to, 1) }
+      .map { case (from, to) => HeuristicSearchEdge(from, to, Some(1)) }
     val layout = HeuristicSearchLayout(HeuristicSearchGraph(nodes, edges, "A"))
     val (goalX, bottom) = layout.positions("F")
     val bottomXs = layout.positions.values.collect { case (x, y) if y == bottom => x }.toList
@@ -72,25 +72,43 @@ class HeuristicSearchLayoutTest extends AnyFunSuite {
   test("root isolation, ordering and edge direction hold for varied generated DAGs") {
     val random = new scala.util.Random(42)
     for (size <- 1 to 26; _ <- 0 until 10) {
-      val nodes = (0 until size).map(i => HeuristicSearchNode(s"node$i", i)).toList
+      val nodes = (0 until size).map(i => HeuristicSearchNode(s"node$i", Some(i))).toList
       val tree = (1 until size).map(i => (random.nextInt(i), i)).toSet
       val extra = (for (a <- 0 until size; b <- a + 1 until size if random.nextDouble() < 0.08)
         yield (a, b)).toSet
       val edges = (tree ++ extra).toList.sorted.map { case (a, b) =>
-        HeuristicSearchEdge(s"node$a", s"node$b", 1 + random.nextInt(9))
+        HeuristicSearchEdge(s"node$a", s"node$b", Some(1 + random.nextInt(9)))
       }
       verify(HeuristicSearchGraph(nodes, edges, "node0"))
     }
   }
 
+  test("the generator varies reachable graph structure and leaves labels absent") {
+    val graphs = List.fill(40)(HeuristicSearchProblemGenerator.randomGraph())
+    assert(graphs.map(g => (g.nodes.size, g.edges)).distinct.size > 1)
+    for (graph <- graphs) {
+      assert((7 to 10).contains(graph.nodes.size))
+      assert(graph.nodes.forall(_.heuristic.isEmpty))
+      assert(graph.edges.forall(_.cost.isEmpty))
+      assert(graph.edges.distinct == graph.edges)
+      assert(graph.edges.groupBy(_.to).values.exists(_.size > 1))
+      verify(graph)
+    }
+    val problem = HeuristicSearchProblemGenerator.make()
+    val diagram = SHeuristicSearchGraph(problem.graph, problem.positions)
+    assert("<text ".r.findAllIn(diagram.toHTML).size == problem.graph.nodes.size)
+    assert("<polygon ".r.findAllIn(diagram.toHTML).size == problem.graph.edges.size)
+    assert(!diagram.toString.contains("node[midway"))
+  }
+
   test("cycles and unreachable nodes fail clearly") {
-    val nodes = List(HeuristicSearchNode("A", 1), HeuristicSearchNode("B", 0))
+    val nodes = List(HeuristicSearchNode("A", Some(1)), HeuristicSearchNode("B", Some(0)))
     intercept[IllegalArgumentException] {
       HeuristicSearchLayout(HeuristicSearchGraph(nodes, Nil, "A"))
     }
     intercept[IllegalArgumentException] {
       HeuristicSearchLayout(HeuristicSearchGraph(nodes,
-        List(HeuristicSearchEdge("A", "B", 1), HeuristicSearchEdge("B", "B", 1)), "A"))
+        List(HeuristicSearchEdge("A", "B", Some(1)), HeuristicSearchEdge("B", "B", Some(1))), "A"))
     }
   }
 }

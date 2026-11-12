@@ -65,8 +65,8 @@ case class SHeuristicSearchGraph(
     graph.edges.map(e => (e.from, e.to)),
     _.name,
     _ => None,
-    n => Some(n.heuristic),
-    (from, to) => graph.edges.find(e => e.from == from && e.to == to).map(_.cost),
+    _.heuristic,
+    (from, to) => graph.edges.find(e => e.from == from && e.to == to).flatMap(_.cost),
     directed = true,
     bends = bends
   )

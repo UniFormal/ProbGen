@@ -4,7 +4,9 @@ import SText._
 
 case class HeuristicSearchProblem(graph: HeuristicSearchGraph, positions: Map[String, (Double, Double)]) extends Problem[HeuristicSearchProblem] {
   def intro() = SSnippet(List(
-    x"Each node shows its name and heuristic value. Each directed edge is labeled with its cost.",
+    if (graph.nodes.forall(_.heuristic.isDefined) && graph.edges.forall(_.cost.isDefined))
+      x"Each node shows its name and heuristic value. Each directed edge is labeled with its cost."
+    else x"Follow the arrows to see which nodes are reachable from A.",
     SHeuristicSearchGraph(graph, positions)
   ), "\n")
 
