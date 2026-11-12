@@ -108,7 +108,15 @@ object HeuristicSearchLayout {
     val length = segments.map { case ((x1, y1), (x2, y2)) =>
       math.hypot(x2 - x1, y2 - y1)
     }.sum
-    3 * rows.size + 5 * crossings + 0.2 * length
+    // An unplaced target can still join the open row, but earlier rows are closed.
+    val openRow = rows.size - 1
+    val skippedRows = edges.flatMap { edge =>
+      positions.get(edge.from).map { case (_, sourceY) =>
+        val targetRow = positions.get(edge.to).fold(openRow)(_._2 / 2)
+        math.max(0, targetRow - sourceY / 2 - 1)
+      }
+    }.sum
+    3 * rows.size + 5 * crossings + 2.5 * skippedRows + 0.2 * length
   }
 
 }

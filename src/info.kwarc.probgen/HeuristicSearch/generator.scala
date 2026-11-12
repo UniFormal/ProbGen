@@ -2,7 +2,7 @@ package info.kwarc.probgen
 
 object HeuristicSearchProblemGenerator extends ProblemGenerator[HeuristicSearchProblem] {
   /** The 2024/25 exam graph, including its shared successors F and I. */
-  val exam2024 = HeuristicSearchGraph(
+  val exam2425 = HeuristicSearchGraph(
     List(("A", 8), ("B", 6), ("C", 8), ("D", 5), ("E", 4),
       ("F", 5), ("G", 2), ("H", 0), ("I", 1))
       .map { case (name, h) => HeuristicSearchNode(name, h) },

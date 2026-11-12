@@ -28,14 +28,18 @@ class HeuristicSearchLayoutTest extends AnyFunSuite {
       .copy(graph = layout.graph))
   }
 
-  test("automatic layout supports shared successors and renames the exam graph") {
-    verify(HeuristicSearchProblemGenerator.exam2024)
+  test("the 2024/25 layout keeps the root's shared successor in the second row") {
+    val graph = HeuristicSearchProblemGenerator.exam2425
+    verify(graph)
+    val layout = HeuristicSearchLayout(graph)
+    val secondRow = layout.positions.values.map(_._2).filter(_ > 0).min
+    assert(layout.graph.edges.filter(_.from == "A").forall(e => layout.positions(e.to)._2 == secondRow))
   }
 
   test("the 2023/24 exam graph renders all weighted edges") {
     val graph = HeuristicSearchProblemGenerator.exam2324
     verify(graph)
-    val problem = HeuristicSearchProblemGenerator.make()
+    val problem = HeuristicSearchLayout(graph)
     assert(problem.graph.edges.size == 14)
     assert(problem.positions.values.map(_._2).toSet.size <= 4)
     assert(problem.graph.edges.exists(e => problem.positions(e.from)._2 == problem.positions(e.to)._2))
