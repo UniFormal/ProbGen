@@ -12,8 +12,9 @@ class HeuristicSearchLayoutTest extends AnyFunSuite {
     assert(layout.graph.root == "A")
     assert(layout.graph.edges.forall(e => placed(e.from)._2 < placed(e.to)._2))
     val last = readingOrder.last
-    assert(placed(last)._2 == placed.values.map(_._2).max)
-    if (graph.nodes.size > 1) assert(placed(last)._1 == placed.values.map(_._1).max)
+    val bottom = placed.values.map(_._2).max
+    val bottomRow = placed.values.filter(_._2 == bottom)
+    assert(placed(last) == (bottomRow.map(_._1).max, bottom))
     val originalValues = graph.nodes.map(n => n.name -> n.heuristic).toMap
     val newValues = layout.graph.nodes.map(n => n.name -> n.heuristic).toMap
     assert(layout.graph.edges.map(e => (newValues(e.from), newValues(e.to), e.cost)).sorted ==
@@ -24,6 +25,17 @@ class HeuristicSearchLayoutTest extends AnyFunSuite {
 
   test("automatic layout supports shared successors and renames the exam graph") {
     verify(HeuristicSearchProblemGenerator.exam2024)
+  }
+
+  test("a narrow bottom row is centered with the terminal at its right end") {
+    val layout = HeuristicSearchLayout(HeuristicSearchProblemGenerator.exam2024)
+    val (goalX, bottom) = layout.positions("I")
+    val bottomXs = layout.positions.values.collect { case (x, y) if y == bottom => x }.toList
+    val allXs = layout.positions.values.map(_._1)
+    assert(bottomXs.size == 2)
+    assert(goalX == bottomXs.max)
+    assert(goalX < allXs.max)
+    assert(math.abs(bottomXs.min + bottomXs.max - allXs.min - allXs.max) < 1e-9)
   }
 
   test("root isolation, ordering and downward edges hold for varied generated DAGs") {

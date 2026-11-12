@@ -65,8 +65,7 @@ object HeuristicSearchLayout {
     }.toMap
     val width = rows.map(_.size).max - 1.0
     val positions = rows.zipWithIndex.flatMap { case (row, rank) =>
-      val offset = if (rank == lastRank && lastRank > 0) width - row.size + 1
-                   else (width - row.size + 1) / 2
+      val offset = (width - row.size + 1) / 2
       row.zipWithIndex.map { case (n, column) =>
         renamed(n) -> ((offset + column) * 1.4, rank * 1.3)
       }
