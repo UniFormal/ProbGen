@@ -27,6 +27,16 @@ class HeuristicSearchLayoutTest extends AnyFunSuite {
     verify(HeuristicSearchProblemGenerator.exam2024)
   }
 
+  test("the 2023/24 exam graph renders all weighted edges") {
+    val graph = HeuristicSearchProblemGenerator.exam2324
+    verify(graph)
+    val problem = HeuristicSearchProblemGenerator.make()
+    assert(problem.graph.edges.size == 14)
+    val diagram = SHeuristicSearchGraph(problem.graph, problem.positions)
+    assert("<polygon ".r.findAllIn(diagram.toHTML).size == 14)
+    assert(diagram.toString.linesIterator.count(_.startsWith("\\draw[->]")) == 14)
+  }
+
   test("a narrow bottom row is centered with the terminal at its right end") {
     val layout = HeuristicSearchLayout(HeuristicSearchProblemGenerator.exam2024)
     val (goalX, bottom) = layout.positions("I")
