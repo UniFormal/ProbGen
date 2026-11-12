@@ -54,6 +54,9 @@ case class SGraphDiagram[N](
   private lazy val posOf: Map[String, (Double, Double)] =
     placed.map(p => name(p._1) -> (p._2, p._3)).toMap
 
+  private def labelSegment(from: String, to: String): Int =
+    bends.get((from, to)).fold(0)(points => points.size / 2)
+
   private lazy val maxX = (placed.map(_._2) ::: bends.values.flatten.map(_._1).toList).max
   private lazy val maxDepth = placed.map(_._3).max
 
@@ -93,9 +96,10 @@ case class SGraphDiagram[N](
       val (fx, fd) = posOf(f)
       val (tx, td) = posOf(t)
       cost(f, t).map { v =>
-        val segment = bends.get((f, t)).map(points => (points(1), points(2)))
-          .getOrElse(((fx, fd), (tx, td)))
-        val ((lx, ly), (rx, ry)) = segment
+        val points = (fx, fd) :: bends.getOrElse((f, t), Nil) ::: List((tx, td))
+        val segment = labelSegment(f, t)
+        val (lx, ly) = points(segment)
+        val (rx, ry) = points(segment + 1)
         val dx = cx(rx) - cx(lx)
         val dy = cy(ry) - cy(ly)
         // Offset from the midpoint toward the outside of the branch.
@@ -152,12 +156,13 @@ case class SGraphDiagram[N](
     val draws = edges.map { case (f, t) =>
       val arrow = if (directed) "[->]" else ""
       val label = cost(f, t).map(v => s" node[midway,fill=white,inner sep=2pt] {$$$v$$}").getOrElse("")
-      bends.get((f, t)) match {
-        case Some(points) =>
-          val coordinates = points.map { case (x, y) => s"(${cm(x * tikzX)},${cm(-y * tikzY)})" }
-          s"\\draw$arrow ($f) -- ${coordinates(0)} -- ${coordinates(1)} --$label ${coordinates(2)} -- ${coordinates(3)} -- ($t);"
-        case None => s"\\draw$arrow ($f) --$label ($t);"
-      }
+      val coordinates = bends.getOrElse((f, t), Nil)
+        .map { case (x, y) => s"(${cm(x * tikzX)},${cm(-y * tikzY)})" }
+      val path = (coordinates :+ s"($t)").zipWithIndex.map { case (point, index) =>
+        val segmentLabel = if (index == labelSegment(f, t)) label else ""
+        s" --$segmentLabel $point"
+      }.mkString
+      s"\\draw$arrow ($f)$path;"
     }
     ("\\begin{center}" ::
       "\\begin{tikzpicture}[gn/.style={draw,circle,minimum size=7mm,inner sep=1pt}]" ::
