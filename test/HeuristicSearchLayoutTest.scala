@@ -91,6 +91,7 @@ class HeuristicSearchLayoutTest extends AnyFunSuite {
       assert(graph.nodes.forall(_.heuristic.isEmpty))
       assert(graph.edges.forall(_.cost.isEmpty))
       assert(graph.edges.distinct == graph.edges)
+      assert((2 to 3).contains(graph.edges.size - graph.nodes.size + 1))
       assert(graph.edges.groupBy(_.to).values.exists(_.size > 1))
       verify(graph)
     }
@@ -99,6 +100,16 @@ class HeuristicSearchLayoutTest extends AnyFunSuite {
     assert("<text ".r.findAllIn(diagram.toHTML).size == problem.graph.nodes.size)
     assert("<polygon ".r.findAllIn(diagram.toHTML).size == problem.graph.edges.size)
     assert(!diagram.toString.contains("node[midway"))
+  }
+
+  test("the preview usually has at least two horizontal arrows") {
+    val samples = List.fill(24)(HeuristicSearchProblemGenerator.make())
+    val withSideways = samples.count { problem =>
+      problem.graph.edges.count { e =>
+        problem.positions(e.from)._2 == problem.positions(e.to)._2
+      } >= 2
+    }
+    assert(withSideways >= 18)
   }
 
   test("cycles and unreachable nodes fail clearly") {

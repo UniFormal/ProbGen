@@ -50,10 +50,13 @@ object HeuristicSearchProblemGenerator extends ProblemGenerator[HeuristicSearchP
     val unused = consecutiveRows.flatMap { case (parents, children) =>
       for (parent <- parents; child <- children) yield HeuristicSearchEdge(parent, child)
     }.filterNot(backbone.contains)
-    // At least four candidates remain across the two non-root pairs of rows.
-    val extra = Generator.chooseSome(unused, atLeast = 2, atMost = 3, allowRep = false)
+    val sideways = rows.slice(1, 3).map { row =>
+      val from = Generator.chooseInt(0, row.size - 2)
+      HeuristicSearchEdge(row(from), row(from + 1))
+    }
+    val extra = if (Generator.chooseBoolean(0.5)) List(Generator.choose(unused)) else Nil
     HeuristicSearchGraph(names.map(name => HeuristicSearchNode(name)).toList,
-      (backbone ++ extra).sortBy(e => (e.from, e.to)), names.head)
+      (backbone ++ sideways ++ extra).sortBy(e => (e.from, e.to)), names.head)
   }
 
   def fromGraph(graph: HeuristicSearchGraph): HeuristicSearchProblem = {
@@ -61,5 +64,28 @@ object HeuristicSearchProblemGenerator extends ProblemGenerator[HeuristicSearchP
     HeuristicSearchProblem(layout.graph, layout.positions)
   }
 
-  def make(): HeuristicSearchProblem = fromGraph(randomGraph())
+  def make(): HeuristicSearchProblem = {
+    // Judge the final layout, since a connection within a generation row can
+    // end up diagonal after the layout algorithm rearranges the nodes.
+    def quality(problem: HeuristicSearchProblem): (Int, Int) = {
+      val rows = problem.positions.values.map(_._2).toSet.toList.sorted.zipWithIndex.toMap
+      val spans = problem.graph.edges.map { edge =>
+        rows(problem.positions(edge.to)._2) - rows(problem.positions(edge.from)._2)
+      }
+      (math.min(2, spans.count(_ == 0)), -spans.count(_ > 1))
+    }
+
+    var best = fromGraph(randomGraph())
+    var bestQuality = quality(best)
+    val alternatives = Iterator.fill(3)(fromGraph(randomGraph()))
+    while (bestQuality != (2, 0) && alternatives.hasNext) {
+      val candidate = alternatives.next()
+      val candidateQuality = quality(candidate)
+      if (Ordering[(Int, Int)].gt(candidateQuality, bestQuality)) {
+        best = candidate
+        bestQuality = candidateQuality
+      }
+    }
+    best
+  }
 }
