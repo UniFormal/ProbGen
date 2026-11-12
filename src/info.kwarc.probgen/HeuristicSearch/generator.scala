@@ -51,13 +51,9 @@ object HeuristicSearchProblemGenerator extends ProblemGenerator[HeuristicSearchP
       for (parent <- parents; child <- children) yield HeuristicSearchEdge(parent, child)
     }.filterNot(backbone.contains)
     // At least four candidates remain across the two non-root pairs of rows.
-    val extra = Generator.chooseSome(unused, atLeast = 3, atMost = 4, allowRep = false)
-    // Add a direct alternative to a two-step path below the root.
-    val parents = backbone.map(edge => edge.to -> edge.from).toMap
-    val destination = Generator.choose(rows.last)
-    val shortcut = HeuristicSearchEdge(parents(parents(destination)), destination)
+    val extra = Generator.chooseSome(unused, atLeast = 2, atMost = 3, allowRep = false)
     HeuristicSearchGraph(names.map(name => HeuristicSearchNode(name)).toList,
-      (backbone ++ extra :+ shortcut).sortBy(e => (e.from, e.to)), names.head)
+      (backbone ++ extra).sortBy(e => (e.from, e.to)), names.head)
   }
 
   def fromGraph(graph: HeuristicSearchGraph): HeuristicSearchProblem = {
