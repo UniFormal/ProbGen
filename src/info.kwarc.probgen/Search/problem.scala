@@ -20,9 +20,9 @@ case class ExpressionBasedDeterministicSearchProblem(
 
   def goal(s: Int) = Evaluator(goalForm)(using Context("s" -> s)).asBool
 
-  def stateName(s: Int): Expr  = if (presentArithmetically) DInt(s) else NameLit(s)
+  def stateName(s: Int): Expr  = if (presentArithmetically) DInt(s) else DString(VarNames(s))
   def actionName(a: Int): Expr = if (presentArithmetically) DInt(a)
-  else NameLit(26 - actions.length + actions.indexOf(a))
+    else DString(VarNames(26 - actions.length + actions.indexOf(a)))
   def namedSolutions = solutions.map(_.rename(stateName, actionName))
 
   // ── Reading names back ───────────────────────────────────────────────────

@@ -16,7 +16,8 @@ object Problems {
     "Propositional Logic" -> (() => LogicProblemGenerator.make()),
    // "First-Order Logic"   -> (() => FOLProblemGenerator.make()),
     "Constraint Satisfaction" -> (() => CSPGenerator.make()),
-    "Probability"         -> (() => BasicProbabilityProblemGenerator.make()),
+    "Abstract Probability"  -> (() => AbstractProbabilityProblemGenerator.make()),
+    //"Concrete Probability"  -> (() => ConcreteProbabilityProblemGenerator.make()),
     "MDP"                 -> (() => MDPGenerator.make())
   )
 }

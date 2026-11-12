@@ -8,7 +8,7 @@ import org.scalatest.funsuite.AnyFunSuite
 class ProbabilityGradingTest extends AnyFunSuite {
 
   private val runs = 40
-  private def problems = List.fill(runs)(BasicProbabilityProblemGenerator.make())
+  private def problems = List.fill(runs)(AbstractProbabilityProblemGenerator.make())
   private def sum(names: Iterable[String]) = names.toList.sorted.mkString(" + ")
 
   test("P(formula) as a sum of event names") {
