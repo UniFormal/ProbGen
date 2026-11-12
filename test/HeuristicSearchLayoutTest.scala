@@ -10,7 +10,12 @@ class HeuristicSearchLayoutTest extends AnyFunSuite {
     assert(readingOrder == graph.nodes.indices.map(i => ('A' + i).toChar.toString).toList)
     assert(placed.filter(_._2._2 == 0).keySet == Set("A"))
     assert(layout.graph.root == "A")
-    assert(layout.graph.edges.forall(e => placed(e.from)._2 < placed(e.to)._2))
+    assert(layout.graph.edges.forall { e =>
+      val (fromX, fromY) = placed(e.from)
+      val (toX, toY) = placed(e.to)
+      fromY < toY || (fromY == toY && toX > fromX &&
+        !placed.values.exists { case (x, y) => y == fromY && fromX < x && x < toX })
+    })
     val last = readingOrder.last
     val bottom = placed.values.map(_._2).max
     val bottomRow = placed.values.filter(_._2 == bottom)
@@ -32,14 +37,19 @@ class HeuristicSearchLayoutTest extends AnyFunSuite {
     verify(graph)
     val problem = HeuristicSearchProblemGenerator.make()
     assert(problem.graph.edges.size == 14)
+    assert(problem.positions.values.map(_._2).toSet.size <= 4)
+    assert(problem.graph.edges.exists(e => problem.positions(e.from)._2 == problem.positions(e.to)._2))
     val diagram = SHeuristicSearchGraph(problem.graph, problem.positions)
     assert("<polygon ".r.findAllIn(diagram.toHTML).size == 14)
     assert(diagram.toString.linesIterator.count(_.startsWith("\\draw[->]")) == 14)
   }
 
   test("a narrow bottom row is centered with the terminal at its right end") {
-    val layout = HeuristicSearchLayout(HeuristicSearchProblemGenerator.exam2024)
-    val (goalX, bottom) = layout.positions("I")
+    val nodes = ('A' to 'F').map(n => HeuristicSearchNode(n.toString, 0)).toList
+    val edges = List(("A", "B"), ("A", "C"), ("A", "D"), ("B", "E"), ("C", "F"))
+      .map { case (from, to) => HeuristicSearchEdge(from, to, 1) }
+    val layout = HeuristicSearchLayout(HeuristicSearchGraph(nodes, edges, "A"))
+    val (goalX, bottom) = layout.positions("F")
     val bottomXs = layout.positions.values.collect { case (x, y) if y == bottom => x }.toList
     val allXs = layout.positions.values.map(_._1)
     assert(bottomXs.size == 2)
@@ -48,7 +58,7 @@ class HeuristicSearchLayoutTest extends AnyFunSuite {
     assert(math.abs(bottomXs.min + bottomXs.max - allXs.min - allXs.max) < 1e-9)
   }
 
-  test("root isolation, ordering and downward edges hold for varied generated DAGs") {
+  test("root isolation, ordering and edge direction hold for varied generated DAGs") {
     val random = new scala.util.Random(42)
     for (size <- 1 to 26; _ <- 0 until 10) {
       val nodes = (0 until size).map(i => HeuristicSearchNode(s"node$i", i)).toList

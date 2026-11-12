@@ -37,29 +37,30 @@ object HeuristicSearchLayout {
 
     // Prefer the last input name if it is a sink, otherwise choose the last sink.
     val terminal = names.sorted.reverse.find(n => children(n).isEmpty).get
-    val lastRank = ranks.values.max
-    ranks += terminal -> lastRank
-    var rows = (0 to lastRank).map(rank => names.filter(ranks(_) == rank).sorted).toVector
-
-    // Barycenter sweeps reduce crossings while keeping the root and terminal fixed.
-    for (_ <- 0 until 4) {
-      for (rank <- 1 to lastRank) {
-        val order = rows.flatten.zipWithIndex.toMap
-        rows = rows.updated(rank, rows(rank).sortBy { n =>
-          val adjacent = parents(n)
-          (adjacent.map(order(_).toDouble).sum / adjacent.size, n)
-        })
-      }
-      for (rank <- (1 until lastRank).reverse) {
-        val order = rows.flatten.zipWithIndex.toMap
-        rows = rows.updated(rank, rows(rank).sortBy { n =>
-          val adjacent = children(n)
-          (if (adjacent.isEmpty) order(n).toDouble
-           else adjacent.map(order(_).toDouble).sum / adjacent.size, n)
-        })
-      }
+    // Keep a bounded set of partial layouts. A row can contain a horizontal
+    // edge only between neighbors, so it never runs through another node.
+    val beamWidth = if (names.size <= 12) 32 else 6
+    val rowWidth = math.max(3, ranks.values.groupBy(identity).values.map(_.size).max)
+    val edges = input.edges.sortBy(e => (e.from, e.to))
+    var candidates = Vector(Vector(Vector(input.root)))
+    for (_ <- 1 until names.size) {
+      candidates = candidates.flatMap { rows =>
+        val placed = rows.flatten.toSet
+        val lastRow = rows.last
+        val ready = names.sorted.filter { n =>
+          !placed(n) && parents(n).forall(placed) &&
+            (n != terminal || placed.size == names.size - 1)
+        }
+        ready.flatMap { n =>
+          val nextRow = rows :+ Vector(n)
+          val canShareRow = rows.size > 1 && lastRow.size < rowWidth &&
+            parents(n).filter(lastRow.contains).forall(_ == lastRow.last)
+          if (canShareRow) Vector(rows.updated(rows.size - 1, lastRow :+ n), nextRow)
+          else Vector(nextRow)
+        }
+      }.map(rows => (layoutCost(rows, edges), rows)).sortBy(_._1).take(beamWidth).map(_._2)
     }
-    rows = rows.updated(lastRank, rows(lastRank).filterNot(_ == terminal) :+ terminal)
+    val rows = candidates.head
     val renamed = rows.flatten.zipWithIndex.map { case (n, i) =>
       n -> ('A' + i).toChar.toString
     }.toMap
@@ -78,4 +79,36 @@ object HeuristicSearchLayout {
     )
     new HeuristicSearchLayout(graph, positions)
   }
+
+  private def layoutCost(rows: Vector[Vector[String]], edges: List[HeuristicSearchEdge]): Double = {
+    val positions = rows.zipWithIndex.flatMap { case (row, rank) =>
+      row.zipWithIndex.map { case (name, column) =>
+        name -> ((2 * column - row.size + 1, 2 * rank))
+      }
+    }.toMap
+    val segments = edges.flatMap { edge =>
+      for {
+        from <- positions.get(edge.from)
+        to <- positions.get(edge.to)
+      } yield (from, to)
+    }.toVector
+
+    def side(a: (Int, Int), b: (Int, Int), c: (Int, Int)): Int =
+      (b._1 - a._1) * (c._2 - a._2) - (b._2 - a._2) * (c._1 - a._1)
+
+    var crossings = 0
+    segments.indices.foreach { i =>
+      val (a, b) = segments(i)
+      for (j <- 0 until i) {
+        val (c, d) = segments(j)
+        if (side(a, b, c) * side(a, b, d) < 0 && side(c, d, a) * side(c, d, b) < 0)
+          crossings += 1
+      }
+    }
+    val length = segments.map { case ((x1, y1), (x2, y2)) =>
+      math.hypot(x2 - x1, y2 - y1)
+    }.sum
+    3 * rows.size + 5 * crossings + 0.2 * length
+  }
+
 }
