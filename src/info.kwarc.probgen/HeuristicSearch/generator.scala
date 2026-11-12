@@ -34,8 +34,13 @@ object HeuristicSearchProblemGenerator extends ProblemGenerator[HeuristicSearchP
     val available = connections.flatMap(_._2)
     val extra = if (available.nonEmpty && Generator.chooseBoolean(0.5)) List(Generator.choose(available))
                 else Nil
-    val edges = connections.flatMap(_._1) ++ sideways ++ extra
-    val graph = HeuristicSearchGraph(names.map(HeuristicSearchNode(_)).toList, edges, names.head)
+    val edges = (connections.flatMap(_._1) ++ sideways ++ extra)
+      .map(edge => edge.copy(cost = Some(Generator.chooseInt(1, 9))))
+    val nodes = names.map { name =>
+      val heuristic = if (name == names.last) 0 else Generator.chooseInt(1, 9)
+      HeuristicSearchNode(name, Some(heuristic))
+    }.toList
+    val graph = HeuristicSearchGraph(nodes, edges, names.head)
     HeuristicSearchProblem(graph, positions)
   }
 }
