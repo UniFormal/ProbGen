@@ -6,6 +6,13 @@ class HeuristicSearchGenerationTest extends AnyFunSuite {
   test("generated graphs are varied, reachable, and fit their rows without edge crossings") {
     val problems = List.fill(60)(HeuristicSearchProblemGenerator.make())
     assert(problems.map(p => (p.positions, p.graph.edges)).distinct.size > 1)
+    val horizontalCounts = problems.map { problem =>
+      val actual = problem.graph.edges.count(e => problem.positions(e.from)._2 == problem.positions(e.to)._2)
+      val possible = problem.positions.size - problem.positions.values.map(_._2).toSet.size
+      (actual, possible)
+    }
+    assert(horizontalCounts.exists { case (actual, possible) => actual == possible && possible > 3 })
+    assert(horizontalCounts.exists { case (actual, possible) => actual < possible })
     for (problem <- problems) {
       val graph = problem.graph
       val positions = problem.positions
@@ -24,7 +31,7 @@ class HeuristicSearchGenerationTest extends AnyFunSuite {
 
       val rowOf = rows.zipWithIndex.flatMap { case (row, index) => row.map(_ -> index) }.toMap
       val horizontal = graph.edges.filter(e => rowOf(e.from) == rowOf(e.to))
-      assert(horizontal.size == 2)
+      assert((1 to rows.map(_.size - 1).sum).contains(horizontal.size))
       assert(horizontal.forall { edge =>
         val row = rows(rowOf(edge.from))
         row.indexOf(edge.to) == row.indexOf(edge.from) + 1
@@ -33,7 +40,7 @@ class HeuristicSearchGenerationTest extends AnyFunSuite {
       val downward = graph.edges.filterNot(horizontal.contains)
       assert(downward.forall(e => rowOf(e.to) == rowOf(e.from) + 1))
       assert(downward.map(_.to).toSet == names.tail.toSet)
-      assert((2 to 3).contains(graph.edges.size - names.size + 1))
+      assert((0 to 1).contains(downward.size - names.size + 1))
       assert(downward.groupBy(e => rowOf(e.from)).values.forall { band =>
         band.forall(a => !band.exists(b => a.from < b.from && a.to > b.to))
       })
