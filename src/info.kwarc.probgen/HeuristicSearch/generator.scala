@@ -13,6 +13,8 @@ object HeuristicSearchProblemGenerator extends ProblemGenerator[HeuristicSearchP
     "A"
   )
 
-  def make(): HeuristicSearchProblem =
-    HeuristicSearchProblem(exam2024, HeuristicSearchLayout.exam2024)
+  def make(): HeuristicSearchProblem = {
+    val layout = HeuristicSearchLayout(exam2024)
+    HeuristicSearchProblem(layout.graph, layout.positions)
+  }
 }

@@ -1,16 +1,5 @@
 package info.kwarc.probgen
 
-/** Coordinates are independent of graph data and need not lie in discrete layers. */
-object HeuristicSearchLayout {
-  val exam2024: Map[String, (Double, Double)] = Map(
-    "A" -> (1.9, 0.0),
-    "B" -> (0.9, 0.9), "C" -> (2.9, 0.9),
-    "F" -> (1.9, 1.35),
-    "D" -> (0.3, 1.8), "E" -> (1.3, 1.8), "G" -> (3.55, 1.8),
-    "H" -> (0.0, 2.7), "I" -> (0.95, 2.7)
-  )
-}
-
 case class SHeuristicSearchGraph(
     graph: HeuristicSearchGraph,
     positions: Map[String, (Double, Double)]
@@ -25,6 +14,18 @@ case class SHeuristicSearchGraph(
   require(graph.edges.forall(e => positions(e.from) != positions(e.to)),
     "An edge needs distinct endpoint positions")
 
+  // Long edges travel through separate lanes beyond the rightmost node.
+  private val longEdges = graph.edges.filter(e => positions(e.to)._2 - positions(e.from)._2 > 1.31)
+  private val bends = longEdges.zipWithIndex.map { case (edge, index) =>
+    val (fromX, fromY) = positions(edge.from)
+    val (toX, toY) = positions(edge.to)
+    val lane = positions.values.map(_._1).max + 0.7 + index * 0.45
+    (edge.from, edge.to) -> List(
+      (fromX, fromY + 0.45), (lane, fromY + 0.45),
+      (lane, toY - 0.45), (toX, toY - 0.45)
+    )
+  }.toMap
+
   private val diagram = SGraphDiagram[HeuristicSearchNode](
     graph.nodes.map { node =>
       val (x, y) = positions(node.name)
@@ -35,7 +36,8 @@ case class SHeuristicSearchGraph(
     _ => None,
     n => Some(n.heuristic),
     (from, to) => graph.edges.find(e => e.from == from && e.to == to).map(_.cost),
-    directed = true
+    directed = true,
+    bends = bends
   )
   def toHTML = diagram.toHTML
   override def toString = diagram.toString
