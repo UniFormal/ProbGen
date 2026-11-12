@@ -26,6 +26,18 @@ object HeuristicSearchProblemGenerator extends ProblemGenerator[HeuristicSearchP
     "A"
   )
 
+  /** The 2022/23 exam graph with F → E and I → G omitted to make it acyclic. */
+  val exam2223 = HeuristicSearchGraph(
+    List(("A", 10), ("B", 8), ("C", 9), ("D", 7), ("E", 5),
+      ("F", 4), ("G", 3), ("H", 4), ("I", 0))
+      .map { case (name, h) => HeuristicSearchNode(name, h) },
+    List(("A", "B", 6), ("A", "C", 3), ("B", "D", 3), ("B", "E", 1),
+      ("C", "F", 2), ("C", "G", 5), ("D", "H", 1), ("E", "C", 1),
+      ("F", "H", 5), ("F", "I", 8), ("G", "F", 1), ("H", "I", 5))
+      .map { case (from, to, cost) => HeuristicSearchEdge(from, to, cost) },
+    "A"
+  )
+
   def make(): HeuristicSearchProblem = {
     val layout = HeuristicSearchLayout(exam2324)
     HeuristicSearchProblem(layout.graph, layout.positions)

@@ -48,6 +48,13 @@ class HeuristicSearchLayoutTest extends AnyFunSuite {
     assert(diagram.toString.linesIterator.count(_.startsWith("\\draw[->]")) == 14)
   }
 
+  test("the 2022/23 exam variant is acyclic and keeps I as a sink") {
+    val graph = HeuristicSearchProblemGenerator.exam2223
+    assert(!graph.edges.exists(e => e.from == "F" && e.to == "E"))
+    assert(!graph.edges.exists(_.from == "I"))
+    verify(graph)
+  }
+
   test("a narrow bottom row is centered with the terminal at its right end") {
     val nodes = ('A' to 'F').map(n => HeuristicSearchNode(n.toString, 0)).toList
     val edges = List(("A", "B"), ("A", "C"), ("A", "D"), ("B", "E"), ("C", "F"))
