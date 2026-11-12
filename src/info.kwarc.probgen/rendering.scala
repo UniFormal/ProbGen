@@ -48,16 +48,12 @@ case class SGraphDiagram[N](
     labelBelow: N => Option[Int],
     heuristic: N => Option[Int],
     cost: (String, String) => Option[Int],
-    directed: Boolean = false,
-    bends: Map[(String, String), List[(Double, Double)]] = Map.empty
+    directed: Boolean = false
 ) extends SText {
   private lazy val posOf: Map[String, (Double, Double)] =
     placed.map(p => name(p._1) -> (p._2, p._3)).toMap
 
-  private def labelSegment(from: String, to: String): Int =
-    bends.get((from, to)).fold(0)(points => points.size / 2)
-
-  private lazy val maxX = (placed.map(_._2) ::: bends.values.flatten.map(_._1).toList).max
+  private lazy val maxX = placed.map(_._2).max
   private lazy val maxDepth = placed.map(_._3).max
 
   // ── Browser: an SVG picture ──────────────────────────────────────────────
@@ -83,34 +79,23 @@ case class SGraphDiagram[N](
     val lines = edges.map { case (f, t) =>
       val (fx, fd) = posOf(f)
       val (tx, td) = posOf(t)
-      bends.get((f, t)) match {
-        case Some(intermediate) =>
-          val points = ((fx, fd) :: intermediate ::: List((tx, td)))
-            .map { case (x, y) => s"${cx(x)},${cy(y)}" }.mkString(" ")
-          s"""<polyline points="$points" fill="none" stroke="$ink" stroke-width="1.1"/>"""
-        case None =>
-          s"""<line x1="${cx(fx)}" y1="${cy(fd)}" x2="${cx(tx)}" y2="${cy(td)}" stroke="$ink" stroke-width="1.1"/>"""
-      }
+      s"""<line x1="${cx(fx)}" y1="${cy(fd)}" x2="${cx(tx)}" y2="${cy(td)}" stroke="$ink" stroke-width="1.1"/>"""
     }
     val edgeLabels = edges.flatMap { case (f, t) =>
       val (fx, fd) = posOf(f)
       val (tx, td) = posOf(t)
       cost(f, t).map { v =>
-        val points = (fx, fd) :: bends.getOrElse((f, t), Nil) ::: List((tx, td))
-        val segment = labelSegment(f, t)
-        val (lx, ly) = points(segment)
-        val (rx, ry) = points(segment + 1)
-        val dx = cx(rx) - cx(lx)
-        val dy = cy(ry) - cy(ly)
+        val dx = cx(tx) - cx(fx)
+        val dy = cy(td) - cy(fd)
         // Offset from the midpoint toward the outside of the branch.
         val offset = (if (dx < 0) -14.0 else 14.0) / math.hypot(dx, dy)
-        val x = (cx(lx) + cx(rx)) / 2 + offset * dy
-        val y = (cy(ly) + cy(ry)) / 2 - offset * dx
+        val x = (cx(fx) + cx(tx)) / 2 + offset * dy
+        val y = (cy(fd) + cy(td)) / 2 - offset * dx
         s"""<text x="$x" y="$y" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-size="17" fill="$ink">$v</text>"""
       }
     }
     val arrows = if (!directed) Nil else edges.map { case (f, t) =>
-      val (fx, fd) = bends.get((f, t)).map(_.last).getOrElse(posOf(f))
+      val (fx, fd) = posOf(f)
       val (tx, td) = posOf(t)
       val dx = cx(tx) - cx(fx)
       val dy = cy(td) - cy(fd)
@@ -156,13 +141,7 @@ case class SGraphDiagram[N](
     val draws = edges.map { case (f, t) =>
       val arrow = if (directed) "[->]" else ""
       val label = cost(f, t).map(v => s" node[midway,fill=white,inner sep=2pt] {$$$v$$}").getOrElse("")
-      val coordinates = bends.getOrElse((f, t), Nil)
-        .map { case (x, y) => s"(${cm(x * tikzX)},${cm(-y * tikzY)})" }
-      val path = (coordinates :+ s"($t)").zipWithIndex.map { case (point, index) =>
-        val segmentLabel = if (index == labelSegment(f, t)) label else ""
-        s" --$segmentLabel $point"
-      }.mkString
-      s"\\draw$arrow ($f)$path;"
+      s"\\draw$arrow ($f) --$label ($t);"
     }
     ("\\begin{center}" ::
       "\\begin{tikzpicture}[gn/.style={draw,circle,minimum size=7mm,inner sep=1pt}]" ::
