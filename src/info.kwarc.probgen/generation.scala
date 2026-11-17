@@ -19,7 +19,7 @@ case class State(vars: List[String], extraInts: List[Int] = Nil,
 
 /**
   * This objects collects utility methods for generating random objects.
-  * It was originally intended to allow generating random [[Formula]]s and [[Term]]s
+  * It was originally intended to allow generating random [[Form]]s and [[Term]]s
   * based on certain criteria such as depth of the syntax tree,
   * but it is not clear how well this will work.
   * Either way the basic functions are good for reuse.
@@ -33,7 +33,13 @@ object Generator {
   }
   /** choose some values from a list */
   def chooseSome[A](options: List[A], atLeast: Int, atMost: Int, allowRep: Boolean) = {
-    val num = choose(Range(atLeast,atMost+1).toList)
+    require(options.nonEmpty, "chooseSome needs at least one option")
+    require(atLeast <= atMost, "atLeast must be <= atMost")
+    if (!allowRep) {
+      require(atMost <= options.length, "cannot choose more unique elements than options")
+    }
+
+    val num = choose(Range(atLeast, atMost + 1).toList)
     var choices: List[A] = Nil
     while (choices.length < num) {
       val c = choose(options)
@@ -51,10 +57,32 @@ object Generator {
     val n = Random.nextInt(max+1-min)
     min+n
   }
+  /** choose a float from an interval */
+  def chooseFloat(min: Double,max: Double): Double = {
+    val r = Random.nextFloat()
+    min+r*(max-min)
+  }
+  /** choose one value from a list of (value, weight) pairs; the weights are
+    * relative frequencies ("percentages") - they don't need to sum to any
+    * particular total, they get normalized against their own sum */
+  def chooseWeighted[A](options: Seq[(A, Double)]): A = {
+    require(options.nonEmpty, "chooseWeighted needs at least one option")
+    val total = options.map(_._2).sum
+    require(total > 0, "at least one weight must be positive")
+    val r = Random.nextDouble() * total
+    var acc = 0.0
+    var result = options.head._1
+    var found = false
+    for ((a, w) <- options if !found) {
+      acc += w
+      if (r < acc) { result = a; found = true }
+    }
+    result
+  }
 
   /* methods that try to generate random terms and formulas */
 
-  def genTerm(state: State): Term = {
+  def genTerm(state: State): Expr = {
     val leafProb: Double = if (state.depth < state.minDepth) 0.0
     else if (state.depth >= state.maxDepth) 1.0
     else (state.depth-state.minDepth)/(state.maxDepth-state.minDepth)
@@ -73,10 +101,10 @@ object Generator {
       val op = choose(TOper.all)
       state.depth += 1
       val args = genTerms(state,op.minArity.getOrElse(2),op.maxArity.getOrElse(2))
-      Apply(op,args)
+      OperApply(op,args)
     }
   }
-  def genTerms(state: State, atLeast: Int = 1, atMost: Int = 3): List[Term] = {
+  def genTerms(state: State, atLeast: Int = 1, atMost: Int = 3): List[Expr] = {
     val len = chooseInt(atLeast,atMost)
     val d = state.depth
     state.allowLiteral = true
@@ -100,10 +128,10 @@ object Generator {
     state.usedVars ::= n
     Var(n)
   }
-  def genForm(state: State): Form = {
+  def genForm(state: State): Expr = {
     val op = choose(FOper.all)
     state.depth += 1
     val args = genTerms(state,2,2)
-    Pred(op,args)
+    OperApply(op,args)
   }
 }
