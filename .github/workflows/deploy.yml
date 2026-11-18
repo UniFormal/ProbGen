@@ -1,0 +1,58 @@
+name: Deploy ProbGen
+
+# Publishes the website https://uniformal.github.io/ProbGen/ (see "Deployment" in README.md).
+on:
+  push:
+    branches:
+      - publicProblemGen
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup sbt
+        uses: sbt/setup-sbt@v1
+
+      # a failing test stops the deployment, so students never get a broken build
+      - name: Run tests
+        run: sbt test
+
+      - name: Build Scala.js
+        run: sbt fastLinkJS
+
+      # the site is the repository's index.html plus the generated JavaScript,
+      # kept at the path index.html loads it from
+      - name: Assemble website
+        run: |
+          JS=target/scala-3.7.4/probgen-fastopt/main.js
+          mkdir -p _site/$(dirname $JS)
+          cp index.html _site/
+          cp $JS _site/$JS
+          ls -lR _site
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload website
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
