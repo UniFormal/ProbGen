@@ -2,6 +2,12 @@ package info.kwarc.probgen
 
 object HeuristicSearchProblemGenerator extends ProblemGenerator[HeuristicSearchProblem] {
   def make(): HeuristicSearchProblem = {
+    var problem = candidate()
+    while (!problem.graph.hasThreePathsToGoal) problem = candidate()
+    problem
+  }
+
+  private def candidate(): HeuristicSearchProblem = {
     val widths = 1 :: List.fill(3)(Generator.chooseInt(2, 3))
     val boundaries = widths.scanLeft(0)(_ + _)
     val names = (0 until boundaries.last).map(i => ('A' + i).toChar.toString)

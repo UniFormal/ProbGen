@@ -19,6 +19,10 @@ class HeuristicSearchGenerationTest extends AnyFunSuite {
       val rows = positions.toList.groupBy(_._2._2).toList.sortBy(_._1)
         .map { case (_, row) => row.sortBy(_._2._1).map(_._1) }
       val names = graph.nodes.map(_.name)
+      def pathsFrom(name: String): Int =
+        if (name == names.last) 1
+        else graph.edges.filter(_.from == name).map(edge => pathsFrom(edge.to)).sum
+      assert(pathsFrom(graph.root) >= 3)
       assert((7 to 10).contains(names.size))
       assert(rows.size == 4 && rows.head == List("A"))
       assert(graph.root == "A")
@@ -46,6 +50,16 @@ class HeuristicSearchGenerationTest extends AnyFunSuite {
         band.forall(a => !band.exists(b => a.from < b.from && a.to > b.to))
       })
     }
+  }
+
+  test("path counting includes merging routes and excludes routes to other sinks") {
+    val nodes = List("A", "B", "C", "D", "E").map(HeuristicSearchNode(_))
+    def graph(pairs: (String, String)*) = HeuristicSearchGraph(nodes,
+      pairs.toList.map { case (from, to) => HeuristicSearchEdge(from, to) }, "A")
+    assert(!graph("A" -> "B", "B" -> "E", "A" -> "C", "C" -> "E", "A" -> "D").hasThreePathsToGoal)
+    assert(graph("A" -> "B", "A" -> "C", "A" -> "D",
+      "B" -> "D", "C" -> "D", "D" -> "E").hasThreePathsToGoal)
+    assert(!graph("A" -> "B", "B" -> "C", "C" -> "D").hasThreePathsToGoal)
   }
 
   test("SVG and TikZ render the generated nodes and arrows with numeric labels") {
