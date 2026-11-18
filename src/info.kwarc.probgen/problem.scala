@@ -1,19 +1,17 @@
 package info.kwarc.probgen
 
 // ---------------------------------------------------------------------------
-// Result type for answer checking
-// ---------------------------------------------------------------------------
-abstract class CheckResult
-case class Correct() extends CheckResult
-case class NotCheckable(expectedSolution: String) extends CheckResult
-case class Incorrect(hint: String) extends CheckResult
-
-// ---------------------------------------------------------------------------
 // Generator base
 // ---------------------------------------------------------------------------
 trait ProblemGenerator[PD <: Problem[PD]] {
   def log(s: String) = println("% " + s)
   def make(): PD
+}
+
+/** hands out the ids of subproblems: q1, q2, ... */
+object SubproblemIds {
+  private var counter = 0
+  def next(): String = { counter += 1; s"q$counter" }
 }
 
 // ---------------------------------------------------------------------------
@@ -25,8 +23,11 @@ trait Problem[PD <: Problem[PD]] {
   private var subproblems: List[Subproblem] = Nil
   private var groupConstraints: List[GroupConstraint] = Nil
 
-  abstract class Subproblem(val id: String, pts: Int, testspace: Int) {
+  abstract class Subproblem(val id: String, val pts: Int, val testspace: Int) {
     subproblems = subproblems ::: List(this)
+
+    /** unique on the page, unlike `id`; used in the HTML ids */
+    val uid: String = SubproblemIds.next()
 
     def dependencies: List[String] = Nil
     def applicable(): Boolean = true
@@ -34,31 +35,57 @@ trait Problem[PD <: Problem[PD]] {
     def question(): SText
     def solution(): SText
 
-    // Default check: compare plain-text normalisation of input vs solution.
-    // Subclasses override this to provide domain-specific checking with hints.
-    def checkSolution(input: String): CheckResult = {
-      val expected = solution().toText.trim
-      if (normalise(input) == normalise(expected)) Correct()
-      else NotCheckable(expected)
+    /**
+      * Override to have this subproblem graded automatically. See answers.scala for the available graders. 
+    */
+    def grader: Option[Grader] = None
+
+    /**
+      * Override to attach a grading scheme to a question that cannot be graded automatically.
+      */
+    def rubric: Option[AnswerRubric] = None
+
+    /** the expected answer format, shown in the empty answer field */
+    def answerHint: String = ""
+
+    /**
+      * The entry point for grading an answer; callers use this, not `checkSolution`.
+      * It handles what every question has in common and then delegates. It is
+      * `final`, so subproblems that override `checkSolution` cannot skip it.
+      */
+    final def check(input: String): CheckResult = {
+      val trimmed = input.trim
+      if (trimmed.isEmpty) MalformedInput("Please enter an answer first.")
+      else checkSolution(trimmed)
     }
 
-    // Normalise for lenient string comparison:
-    // lowercase, strip spaces, sort additive terms
-    protected def normalise(s: String): String = {
-      val clean = s.toLowerCase.trim.split("\\s+").mkString("")
-      clean.split("\\+").map(_.trim).filter(_.nonEmpty).sorted.mkString("+")
-    }
+    /**
+      * A subproblem is graded when it says how, via `grader` (see answers.scala) or `rubric`, and otherwise question is simply reported as not auto-graded.
+      */
+    def checkSolution(input: String): CheckResult =
+      grader match {
+        case Some(g) => g.grade(input)
+        case None =>
+          rubric match {
+            case Some(r) => RubricGrader(() => solution().toHTML, r, uid).grade(input)
+            case None    => NotCheckable(solution().toHTML)
+          }
+      }
+
+    /** points actually earned, rounded to the nearest half point */
+    def awardedPoints(r: CheckResult): Double = Scoring.roundHalf(r.fraction * pts)
 
     def toSTeX() = SSubproblem(
       pts,
       question(),
       SSolution(testspace, List(solution())),
-      this.hashCode.abs.toString
+      uid,
+      answerHint
     )
   }
 
   case class GroupConstraint(atLeast: Int, atMost: Int, choices: Subproblem*) {
-    groupConstraints ::= this
+    groupConstraints = groupConstraints :+ this
     val length = choices.length
   }
 

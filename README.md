@@ -30,6 +30,26 @@ For easy development I recommend the `Scala (Metals)` plugin for VSCode to allow
  
 This is how I (Sungonogi) got everything to run on my ubuntu 24 laptop, but some extra steps might be required for other environments. Feel free to add information like f.e. a recommended IntelliJ Plugin.
 
+To run the tests: `sbt test` (the tests are in the `test` folder).
+
+
+## Deployment (the public website)
+
+The website for students is **https://uniformal.github.io/ProbGen/**. It is deployed automatically by GitHub Actions from the branch **`publicProblemGen`**; `main` is the development branch and is not deployed.
+
+To publish a new version: merge `main` into `publicProblemGen` and push. Every push to `publicProblemGen` runs the workflow `.github/workflows/deploy.yml`, which
+
+1. runs `sbt test` — if a test fails, nothing is deployed and the old version stays online;
+2. builds the JavaScript with `sbt fastLinkJS`;
+3. assembles the site from the repository's `index.html` and the generated `target/scala-3.7.4/probgen-fastopt/main.js` (at the same path, so `index.html` needs no changes);
+4. publishes it to GitHub Pages.
+
+The site therefore always shows exactly the `index.html` of the branch; there is no separate copy to keep in sync.
+A deployment can also be started by hand: GitHub → Actions → "Deploy ProbGen" → "Run workflow".
+Whether a deployment succeeded (and why it failed) is shown in the Actions tab. In the repository settings, Pages → Source must be set to "GitHub Actions".
+
+If the Scala version in `build.sbt` changes, the path `scala-3.7.4` must be updated in both `index.html` and `deploy.yml`.
+
 
 ## Creating your own problem
 
