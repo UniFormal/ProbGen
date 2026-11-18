@@ -4,7 +4,22 @@ object HeuristicSearchProblemGenerator extends ProblemGenerator[HeuristicSearchP
   def make(): HeuristicSearchProblem = {
     var problem = candidate()
     while (!problem.graph.hasThreePathsToGoal) problem = candidate()
-    problem
+    val edges = problem.graph.edges.map { edge =>
+      val cost = Generator.chooseWeighted((1 to 8).map(value => (value, (9 - value).toDouble)))
+      edge.copy(cost = Some(cost))
+    }
+    val weighted = problem.graph.copy(edges = edges)
+    val minimumCosts = weighted.minimumCostsToGoal
+    val nodes = weighted.nodes.map { node =>
+      val heuristic = minimumCosts(node.name) match {
+        case Some(0) => 0
+        case Some(bound) => Generator.chooseInt(1, bound)
+        // Any finite estimate is admissible for a dead end (true cost is infinite).
+        case None => Generator.chooseInt(1, 8)
+      }
+      node.copy(heuristic = Some(heuristic))
+    }
+    problem.copy(graph = weighted.copy(nodes = nodes))
   }
 
   private def candidate(): HeuristicSearchProblem = {
@@ -40,12 +55,8 @@ object HeuristicSearchProblemGenerator extends ProblemGenerator[HeuristicSearchP
     val available = connections.flatMap(_._2)
     val extra = if (available.nonEmpty && Generator.chooseBoolean(0.5)) List(Generator.choose(available))
                 else Nil
-    val edges = (connections.flatMap(_._1) ++ sideways ++ extra)
-      .map(edge => edge.copy(cost = Some(Generator.chooseInt(1, 9))))
-    val nodes = names.map { name =>
-      val heuristic = if (name == names.last) 0 else Generator.chooseInt(1, 9)
-      HeuristicSearchNode(name, Some(heuristic))
-    }.toList
+    val edges = connections.flatMap(_._1) ++ sideways ++ extra
+    val nodes = names.map(HeuristicSearchNode(_)).toList
     val graph = HeuristicSearchGraph(nodes, edges, names.head)
     HeuristicSearchProblem(graph, positions)
   }

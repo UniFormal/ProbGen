@@ -4,6 +4,20 @@ package info.kwarc.probgen
 case class HeuristicSearchNode(name: String, heuristic: Option[Int] = None)
 case class HeuristicSearchEdge(from: String, to: String, cost: Option[Int] = None)
 case class HeuristicSearchGraph(nodes: List[HeuristicSearchNode], edges: List[HeuristicSearchEdge], root: String) {
+  /** None denotes a node from which the goal cannot be reached. */
+  def minimumCostsToGoal: Map[String, Option[Int]] = {
+    val goal = nodes.map(_.name).max
+    val successors = edges.groupBy(_.from)
+    val costs = scala.collection.mutable.Map[String, Option[Int]](goal -> Some(0))
+    for (name <- nodes.map(_.name).sorted.reverse if name != goal) {
+      val alternatives = successors.getOrElse(name, Nil).flatMap { edge =>
+        costs(edge.to).map(_ + edge.cost.get)
+      }
+      costs(name) = alternatives.minOption
+    }
+    costs.toMap
+  }
+
   /** Generated graphs are in alphabetical topological order. Counts saturate at three. */
   def hasThreePathsToGoal: Boolean = {
     val goal = nodes.map(_.name).max

@@ -31,8 +31,16 @@ class HeuristicSearchGenerationTest extends AnyFunSuite {
       assert(!graph.edges.exists(_.from == rows.last.last))
       assert(graph.edges.map(e => (e.from, e.to)).distinct.size == graph.edges.size)
       assert(graph.nodes.last.heuristic.contains(0))
-      assert(graph.nodes.dropRight(1).forall(_.heuristic.exists((1 to 9).contains)))
-      assert(graph.edges.forall(_.cost.exists((1 to 9).contains)))
+      assert(graph.nodes.dropRight(1).forall(_.heuristic.exists(_ > 0)))
+      assert(graph.edges.forall(_.cost.exists((1 to 8).contains)))
+      def pathCosts(name: String): List[Int] =
+        if (name == names.last) List(0)
+        else graph.edges.filter(_.from == name).flatMap(e => pathCosts(e.to).map(_ + e.cost.get))
+      for (node <- graph.nodes) {
+        val exact = pathCosts(node.name).minOption
+        assert(graph.minimumCostsToGoal(node.name) == exact)
+        assert(exact.forall(node.heuristic.get <= _))
+      }
 
       val rowOf = rows.zipWithIndex.flatMap { case (row, index) => row.map(_ -> index) }.toMap
       val horizontal = graph.edges.filter(e => rowOf(e.from) == rowOf(e.to))
@@ -50,6 +58,13 @@ class HeuristicSearchGenerationTest extends AnyFunSuite {
         band.forall(a => !band.exists(b => a.from < b.from && a.to > b.to))
       })
     }
+  }
+
+  test("cost generation favors smaller values") {
+    val costs = List.fill(100)(HeuristicSearchProblemGenerator.make())
+      .flatMap(_.graph.edges.map(_.cost.get))
+    assert(costs.sum.toDouble / costs.size < 4.0)
+    assert(costs.count(_ <= 4) > costs.count(_ > 4))
   }
 
   test("path counting includes merging routes and excludes routes to other sinks") {
