@@ -6,13 +6,13 @@ case class HeuristicSearchProblem(graph: HeuristicSearchGraph, positions: Map[St
   def intro() = SSnippet(List(
     x"Each node shows its name and heuristic value. Each directed edge is labeled with its cost.",
     SHeuristicSearchGraph(graph, positions),
-    x"Assume you have already expanded the root node A. In each question, list the next 4 nodes expanded by the respective algorithm. Break ties alphabetically and visit depth-first children alphabetically. Expand each node at most once, skipping any later occurrence. Continue listing expansions even if a goal node is reached."
+    x"Assume you have already expanded the root node A. The goal is node ${graph.nodes.map(_.name).max}. In each question, list up to the next 4 nodes expanded by the respective algorithm. Stop when the goal is selected for expansion and include it as the last node in your answer. Break ties alphabetically and visit depth-first children alphabetically. Expand each node at most once, skipping any later occurrence."
   ), "\n")
 
   class ExpansionQuestion(val algorithm: HeuristicSearchAlgorithm)
       extends Subproblem(algorithm.toString, algorithm.points, 2) {
     lazy val expected: List[String] = HeuristicSearch.nextExpansions(graph, algorithm)
-    override def answerHint = "four nodes in order, e.g. BCDE or B,C,D,E"
+    override def answerHint = "up to four nodes in order, e.g. BCDE or B,C,D,E"
     def question() = x"${algorithm.title}"
     def solution() = SText(expected.mkString(", "))
 

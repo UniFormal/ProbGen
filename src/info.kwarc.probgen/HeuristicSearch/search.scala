@@ -9,7 +9,7 @@ enum HeuristicSearchAlgorithm(val title: String, val points: Int) {
 }
 
 object HeuristicSearch {
-  /** Expand each node once. Continue after goal nodes to produce the requested trace. */
+  /** Expand each node once, stopping when the goal is selected for expansion. */
   def nextExpansions(
       graph: HeuristicSearchGraph,
       algorithm: HeuristicSearchAlgorithm,
@@ -17,6 +17,7 @@ object HeuristicSearch {
   ): List[String] = {
     case class Entry(name: String, depth: Int, cost: Int)
     val heuristics = graph.nodes.map(n => n.name -> n.heuristic).toMap
+    val goal = graph.nodes.map(_.name).max
     val successors = graph.edges.groupBy(_.from)
     var frontier = List(Entry(graph.root, 0, 0))
     var expanded = Set.empty[String]
@@ -51,7 +52,7 @@ object HeuristicSearch {
             }
             Entry(edge.to, current.depth + 1, cost)
           }
-        frontier = children ::: frontier
+        frontier = if (current.name == goal) Nil else children ::: frontier
       }
     }
     result.result()
