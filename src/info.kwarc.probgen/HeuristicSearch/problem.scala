@@ -6,7 +6,7 @@ case class HeuristicSearchProblem(graph: HeuristicSearchGraph, positions: Map[St
   def intro() = SSnippet(List(
     x"Each node shows its name and heuristic value. Each directed edge is labeled with its cost.",
     SHeuristicSearchGraph(graph, positions),
-    x"Assume you have already expanded the root node A. The goal is node ${graph.nodes.map(_.name).max}. For the five search-algorithm questions, list up to the next 4 nodes expanded by the respective algorithm. Stop when the goal is selected for expansion and include it as the last node in your answer. Break ties alphabetically and visit depth-first children alphabetically. Expand each node at most once, skipping any later occurrence."
+    x"Assume you have already expanded the root node A. The goal is node ${graph.nodes.map(_.name).max}. For the search-algorithm questions, list up to the next 4 nodes expanded by the respective algorithm. Stop when the goal is reached and expand each node at most once. If there is a tie, break it using alphabetical order."
   ), "\n")
 
   class ExpansionQuestion(val algorithm: HeuristicSearchAlgorithm)
@@ -49,7 +49,7 @@ case class HeuristicSearchProblem(graph: HeuristicSearchGraph, positions: Map[St
 
   object optimalCost extends NodeQuestion("optimal-cost") {
     override def answerHint = "a number, e.g. 7 or infinity"
-    def question() = x"What is h*(${node})?"
+    def question() = x"Give the value of h*(${node})"
     def solution() = SText(minimum.map(_.toString).getOrElse("infinity"))
 
     override def checkSolution(input: String): CheckResult = minimum match {
@@ -83,7 +83,7 @@ case class HeuristicSearchProblem(graph: HeuristicSearchGraph, positions: Map[St
   }
 
   object consistency extends Subproblem("consistency", 2, 2) {
-    override def answerHint = "yes or counter example e.g. XY"
+    override def answerHint = "yes or a counter example, e.g. AB"
     def question() =
       x"Is the heuristic consistent? Answer yes if it is and give a counter example if it is not."
     def solution() =
