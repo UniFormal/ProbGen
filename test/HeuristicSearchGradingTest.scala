@@ -38,13 +38,13 @@ class HeuristicSearchGradingTest extends AnyFunSuite {
     }
   }
 
-  test("h-star or admissibility comes first, consistency second, then five search questions") {
+  test("five search questions come before h-star or admissibility and consistency") {
     for (p <- problems) {
       val subs = p.chooseSubproblems()
-      assert(subs.map(_.pts) == List(2, 2, 1, 1, 2, 2, 2))
-      assert(subs(1) == p.consistency && subs.drop(2) == p.questions)
-      assert(Set("optimal-cost", "admissible-range").contains(subs.head.id))
-      val q = subs.head.asInstanceOf[p.NodeQuestion]
+      assert(subs.map(_.pts) == List(1, 1, 2, 2, 2, 2, 2))
+      assert(subs.take(5) == p.questions && subs.last == p.consistency)
+      assert(Set("optimal-cost", "admissible-range").contains(subs(5).id))
+      val q = subs(5).asInstanceOf[p.NodeQuestion]
       assert(q.node.nonEmpty && q.node != p.graph.nodes.last.name)
       assert(q.check(q.solution().toString) == Correct())
       val counterexamples = p.graph.inconsistentEdges.map(e => e.from + e.to)
