@@ -6,7 +6,7 @@ class HeuristicSearchAlgorithmsTest extends AnyFunSuite {
   test("the 2024/25 example uses computed answers truncated at goal I") {
     val problem = HeuristicSearchExamples.exam2425
     val answers = List("BDHI", "BCFD", "BCFE", "FBEI", "BEI")
-    assert(problem.chooseSubproblems().map(_.pts) == List(1, 1, 2, 2, 2))
+    assert(problem.chooseSubproblems().map(_.pts) == List(1, 1, 2, 2, 2, 2))
     for ((question, answer) <- problem.questions.zip(answers)) {
       assert(question.expected.mkString == answer)
       assert(question.check(answer.toList.mkString(", ")) == Correct())
@@ -55,7 +55,7 @@ class HeuristicSearchAlgorithmsTest extends AnyFunSuite {
   test("generated questions stop at the goal or four expansions and accept their solutions") {
     for (_ <- 0 until 30) {
       val problem = HeuristicSearchProblemGenerator.make()
-      assert(problem.chooseSubproblems().size == 5)
+      assert(problem.chooseSubproblems().size == 6)
       for (question <- problem.questions) {
         assert((1 to 4).contains(question.expected.size))
         assert(question.expected.size == 4 || question.expected.last == problem.graph.nodes.last.name)

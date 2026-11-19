@@ -5,7 +5,7 @@ case class HeuristicSearchNode(name: String, heuristic: Option[Int] = None)
 case class HeuristicSearchEdge(from: String, to: String, cost: Option[Int] = None)
 case class HeuristicSearchGraph(nodes: List[HeuristicSearchNode], edges: List[HeuristicSearchEdge], root: String) {
   /** None denotes a node from which the goal cannot be reached. */
-  def minimumCostsToGoal: Map[String, Option[Int]] = {
+  lazy val minimumCostsToGoal: Map[String, Option[Int]] = {
     val goal = nodes.map(_.name).max
     val successors = edges.groupBy(_.from)
     val costs = scala.collection.mutable.Map[String, Option[Int]](goal -> Some(0))
@@ -16,6 +16,11 @@ case class HeuristicSearchGraph(nodes: List[HeuristicSearchNode], edges: List[He
       costs(name) = alternatives.minOption
     }
     costs.toMap
+  }
+
+  lazy val inconsistentEdges: List[HeuristicSearchEdge] = {
+    val heuristics = nodes.map(node => node.name -> node.heuristic.get).toMap
+    edges.filter(edge => heuristics(edge.from) - heuristics(edge.to) > edge.cost.get)
   }
 
   /** Generated graphs are in alphabetical topological order. Counts saturate at three. */
