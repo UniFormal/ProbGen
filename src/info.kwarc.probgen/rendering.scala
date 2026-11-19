@@ -48,7 +48,8 @@ case class SGraphDiagram[N](
     labelBelow: N => Option[Int],
     heuristic: N => Option[Int],
     cost: (String, String) => Option[Int],
-    directed: Boolean = false
+    directed: Boolean = false,
+    htmlScale: Double = 1.0
 ) extends SText {
   private lazy val posOf: Map[String, (Double, Double)] =
     placed.map(p => name(p._1) -> (p._2, p._3)).toMap
@@ -120,7 +121,7 @@ case class SGraphDiagram[N](
         s"""<text x="${cx(x)}" y="${cy(d) + radius + 17}" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="14" fill="$ink">$v</text>"""
       }
     }
-    s"""<svg viewBox="0 0 $w $h" width="$w" height="$h" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;display:block;margin:14px auto">${(lines ::: arrows ::: edgeLabels ::: circles ::: names ::: labels).mkString("")}</svg>"""
+    s"""<svg viewBox="0 0 $w $h" width="${w * htmlScale}" height="${h * htmlScale}" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;display:block;margin:14px auto">${(lines ::: arrows ::: edgeLabels ::: circles ::: names ::: labels).mkString("")}</svg>"""
   }
 
   // ── Exam sheet: a tikz picture ───────────────────────────────────────────

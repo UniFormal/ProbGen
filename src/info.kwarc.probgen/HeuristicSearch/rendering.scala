@@ -24,7 +24,8 @@ case class SHeuristicSearchGraph(
     _ => None,
     _.heuristic,
     (from, to) => graph.edges.find(e => e.from == from && e.to == to).flatMap(_.cost),
-    directed = true
+    directed = true,
+    htmlScale = 0.7
   )
   def toHTML = diagram.toHTML
   override def toString = diagram.toString
