@@ -48,8 +48,8 @@ case class HeuristicSearchProblem(graph: HeuristicSearchGraph, positions: Map[St
   }
 
   object optimalCost extends NodeQuestion("optimal-cost") {
-    override def answerHint = "a number, or infinity if the goal cannot be reached"
-    def question() = x"What is h*(${node}), the minimum total cost from node ${node} to the goal?"
+    override def answerHint = "a number, e.g. 7 or infinity"
+    def question() = x"What is h*(${node})?"
     def solution() = SText(minimum.map(_.toString).getOrElse("infinity"))
 
     override def checkSolution(input: String): CheckResult = minimum match {
@@ -64,9 +64,9 @@ case class HeuristicSearchProblem(graph: HeuristicSearchGraph, positions: Map[St
   }
 
   object admissibleRange extends NodeQuestion("admissible-range") {
-    override def answerHint = "a-b, e.g. 0-6, or 0-infinity"
+    override def answerHint = "a range, e.g. 0-3 or 5-infinity"
     def question() =
-      x"What nonnegative values of h(${node}) keep the heuristic admissible, with all other heuristic values fixed? Answer with the inclusive range a-b. Use infinity for an unbounded upper limit."
+      x"What nonnegative values of h(${node}) keep h admissible?"
     def solution() = SText("0-" + minimum.map(_.toString).getOrElse("infinity"))
 
     override def checkSolution(input: String): CheckResult = {
@@ -83,9 +83,9 @@ case class HeuristicSearchProblem(graph: HeuristicSearchGraph, positions: Map[St
   }
 
   object consistency extends Subproblem("consistency", 2, 2) {
-    override def answerHint = "yes, or a violating directed edge, e.g. BC"
+    override def answerHint = "yes or counter example e.g. XY"
     def question() =
-      x"Is the heuristic consistent? Answer yes if it is. Otherwise give one directed edge XY for which h(X) - h(Y) exceeds its cost."
+      x"Is the heuristic consistent? Answer yes if it is and give a counter example if it is not."
     def solution() =
       if (graph.inconsistentEdges.isEmpty) x"yes"
       else SText("No. Valid counterexamples include " +
