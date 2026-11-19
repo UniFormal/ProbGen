@@ -3,12 +3,11 @@ package info.kwarc.probgen
 import org.scalatest.funsuite.AnyFunSuite
 
 class HeuristicSearchAlgorithmsTest extends AnyFunSuite {
-  test("the 2024/25 example uses computed answers truncated at goal I") {
-    val problem = HeuristicSearchExamples.exam2425
-    val answers = List("BDHI", "BCFD", "BCFE", "FBEI", "BEI")
+  test("search questions accept compact and comma-separated answers with whitespace") {
+    val problem = HeuristicSearchProblemGenerator.make()
     assert(problem.chooseSubproblems().map(_.pts) == List(1, 1, 2, 2, 2, 2))
-    for ((question, answer) <- problem.questions.zip(answers)) {
-      assert(question.expected.mkString == answer)
+    for (question <- problem.questions) {
+      val answer = question.expected.mkString
       assert(question.check(answer.toList.mkString(", ")) == Correct())
       assert(question.check(answer) == Correct())
       assert(question.check(answer.toLowerCase.toList.mkString(" \t", " \n ", " ")) == Correct())

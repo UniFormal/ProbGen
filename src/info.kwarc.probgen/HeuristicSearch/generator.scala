@@ -1,11 +1,8 @@
 package info.kwarc.probgen
 
 object HeuristicSearchProblemGenerator extends ProblemGenerator[HeuristicSearchProblem] {
-  // Enable to compare the computed answers with the original 2024/25 exam.
-  val useExam2425 = false
-
   def make(): HeuristicSearchProblem = {
-    val problem = if (useExam2425) HeuristicSearchExamples.exam2425 else makeRandom()
+    val problem = makeRandom()
     // Populate each cached answer once, after costs and heuristics are finalized.
     problem.questions.foreach(question => question.expected)
     problem
