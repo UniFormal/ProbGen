@@ -2,13 +2,6 @@ package info.kwarc.probgen
 
 object HeuristicSearchProblemGenerator extends ProblemGenerator[HeuristicSearchProblem] {
   def make(): HeuristicSearchProblem = {
-    val problem = makeRandom()
-    // Populate each cached answer once, after costs and heuristics are finalized.
-    problem.questions.foreach(question => question.expected)
-    problem
-  }
-
-  private def makeRandom(): HeuristicSearchProblem = {
     var problem = candidate()
     while (!problem.graph.hasThreePathsToGoal) problem = candidate()
     val edges = problem.graph.edges.map { edge =>
@@ -26,7 +19,10 @@ object HeuristicSearchProblemGenerator extends ProblemGenerator[HeuristicSearchP
       }
       node.copy(heuristic = Some(heuristic))
     }
-    problem.copy(graph = weighted.copy(nodes = nodes))
+    val generated = problem.copy(graph = weighted.copy(nodes = nodes))
+    // Populate each cached answer once, after costs and heuristics are finalized.
+    generated.questions.foreach(question => question.expected)
+    generated
   }
 
   private def candidate(): HeuristicSearchProblem = {
