@@ -12,15 +12,19 @@ case class HeuristicSearchProblem(graph: HeuristicSearchGraph, positions: Map[St
   class ExpansionQuestion(val algorithm: HeuristicSearchAlgorithm)
       extends Subproblem(algorithm.toString, algorithm.points, 2) {
     lazy val expected: List[String] = HeuristicSearch.nextExpansions(graph, algorithm)
-    override def answerHint = "four nodes in order, e.g. B, C, D, E"
+    override def answerHint = "four nodes in order, e.g. BCDE or B,C,D,E"
     def question() = x"${algorithm.title}"
     def solution() = SText(expected.mkString(", "))
 
     override def checkSolution(input: String): CheckResult = {
-      val parsed = ExprParser.parseExprList(input).flatMap { terms =>
+      val compact = input.filterNot(c => c.isWhitespace || Character.isSpaceChar(c))
+      val normalized =
+        if (compact.matches("[A-Za-z]+")) compact.toList.mkString(",")
+        else compact
+      val parsed = ExprParser.parseExprList(normalized).flatMap { terms =>
         Grader.sequence(terms) {
           case Var(name) if graph.nodes.exists(_.name == name.toUpperCase) => Right(name.toUpperCase)
-          case _ => Left("Enter node names in order, separated by commas, e.g. B, C, D, E.")
+          case _ => Left("Enter node names in order, e.g. BCDE or B,C,D,E.")
         }
       }
       Grader.onParsed(parsed) { answer =>

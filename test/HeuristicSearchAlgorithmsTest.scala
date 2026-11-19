@@ -10,6 +10,11 @@ class HeuristicSearchAlgorithmsTest extends AnyFunSuite {
     for ((question, answer) <- problem.questions.zip(answers)) {
       assert(question.expected.mkString == answer)
       assert(question.check(answer.toList.mkString(", ")) == Correct())
+      assert(question.check(answer) == Correct())
+      assert(question.check(answer.toLowerCase.toList.mkString(" \t", " \n ", " ")) == Correct())
+      assert(question.check(answer.toList.mkString(" ", " ,\t ", " ")) == Correct())
+      assert(question.check(answer.toList.mkString("\u00a0")) == Correct())
+      assert(question.check(answer.reverse).isInstanceOf[Incorrect])
       assert(question.check(answer.toLowerCase.toList.mkString("[", ", ", "]")) == Correct())
       assert(question.check("A, A, A, A").isInstanceOf[Incorrect])
       assert(question.check("Z, B, C, D").isInstanceOf[MalformedInput])
