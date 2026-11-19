@@ -1,7 +1,13 @@
 package info.kwarc.probgen
 
 object HeuristicSearchProblemGenerator extends ProblemGenerator[HeuristicSearchProblem] {
-  def make(): HeuristicSearchProblem = {
+  // Enable to compare the computed answers with the original 2024/25 exam.
+  val useExam2425 = false
+
+  def make(): HeuristicSearchProblem =
+    if (useExam2425) HeuristicSearchExamples.exam2425 else makeRandom()
+
+  private def makeRandom(): HeuristicSearchProblem = {
     var problem = candidate()
     while (!problem.graph.hasThreePathsToGoal) problem = candidate()
     val edges = problem.graph.edges.map { edge =>
