@@ -46,26 +46,25 @@ class HeuristicSearchExtensionTest extends AnyFunSuite {
     assert(inconsistent.consistency.check("no").isInstanceOf[MalformedInput])
   }
 
-  test("each exercise selects exactly one extension question and excludes the goal") {
+  test("the first question is h-star or admissibility and consistency is always second") {
     val selectedIds = scala.collection.mutable.Set.empty[String]
     for (_ <- 0 until 60) {
       val p = HeuristicSearchProblemGenerator.make()
       val subs = p.chooseSubproblems()
-      val extra = subs.filterNot(p.questions.contains)
-      assert(subs.size == 6 && extra.size == 1)
-      selectedIds += extra.head.id
-      extra.head match {
-        case q: p.NodeQuestion =>
-          assert(q.node.nonEmpty && q.node != p.graph.nodes.last.name)
-          assert(q.check(q.solution().toString) == Correct())
-        case _ =>
-          val answer = p.graph.inconsistentEdges.headOption
-            .map(e => e.from + e.to).getOrElse("yes")
-          assert(p.consistency.check(answer) == Correct())
-          for (edge <- p.graph.inconsistentEdges)
-            assert(p.consistency.check(edge.from + edge.to) == Correct())
-      }
+      assert(subs.size == 7)
+      assert(subs(1) == p.consistency)
+      assert(subs.drop(2) == p.questions)
+      assert(Set("optimal-cost", "admissible-range").contains(subs.head.id))
+      selectedIds += subs.head.id
+      val q = subs.head.asInstanceOf[p.NodeQuestion]
+      assert(q.node.nonEmpty && q.node != p.graph.nodes.last.name)
+      assert(q.check(q.solution().toString) == Correct())
+      val answer = p.graph.inconsistentEdges.headOption
+        .map(e => e.from + e.to).getOrElse("yes")
+      assert(p.consistency.check(answer) == Correct())
+      for (edge <- p.graph.inconsistentEdges)
+        assert(p.consistency.check(edge.from + edge.to) == Correct())
     }
-    assert(selectedIds.toSet == Set("optimal-cost", "admissible-range", "consistency"))
+    assert(selectedIds.toSet == Set("optimal-cost", "admissible-range"))
   }
 }

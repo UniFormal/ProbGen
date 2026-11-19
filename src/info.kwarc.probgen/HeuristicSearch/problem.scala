@@ -107,7 +107,9 @@ case class HeuristicSearchProblem(graph: HeuristicSearchGraph, positions: Map[St
     }
   }
 
+  GroupConstraint(1, 1, optimalCost, admissibleRange)
+  GroupConstraint(1, 1, consistency)
+
   val questions = HeuristicSearchAlgorithm.values.toList.map(new ExpansionQuestion(_))
   questions.foreach(question => GroupConstraint(1, 1, question))
-  GroupConstraint(1, 1, optimalCost, consistency, admissibleRange)
 }

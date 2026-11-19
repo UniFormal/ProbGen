@@ -5,7 +5,7 @@ import org.scalatest.funsuite.AnyFunSuite
 class HeuristicSearchAlgorithmsTest extends AnyFunSuite {
   test("search questions accept compact and comma-separated answers with whitespace") {
     val problem = HeuristicSearchProblemGenerator.make()
-    assert(problem.chooseSubproblems().map(_.pts) == List(1, 1, 2, 2, 2, 2))
+    assert(problem.chooseSubproblems().map(_.pts) == List(2, 2, 1, 1, 2, 2, 2))
     for (question <- problem.questions) {
       val answer = question.expected.mkString
       assert(question.check(answer.toList.mkString(", ")) == Correct())
@@ -54,7 +54,7 @@ class HeuristicSearchAlgorithmsTest extends AnyFunSuite {
   test("generated questions stop at the goal or four expansions and accept their solutions") {
     for (_ <- 0 until 30) {
       val problem = HeuristicSearchProblemGenerator.make()
-      assert(problem.chooseSubproblems().size == 6)
+      assert(problem.chooseSubproblems().size == 7)
       for (question <- problem.questions) {
         assert((1 to 4).contains(question.expected.size))
         assert(question.expected.size == 4 || question.expected.last == problem.graph.nodes.last.name)
