@@ -12,6 +12,7 @@ object Problems {
     "Mathematical Notation" -> (() => NotationProblemGenerator.make()),
     "Search Problems"     -> (() => SearchProblemGenerator.make()),
     "Adversarial Search"  -> (() => MinimaxProblemGenerator.make()),
+    "Heuristic Search"    -> (() => HeuristicSearchProblemGenerator.make()),
     "Propositional Logic" -> (() => LogicProblemGenerator.make()),
    // "First-Order Logic"   -> (() => FOLProblemGenerator.make()),
     "Constraint Satisfaction" -> (() => CSPGenerator.make()),
