@@ -70,7 +70,7 @@ case class HeuristicSearchProblem(graph: HeuristicSearchGraph, positions: Map[St
     def solution() = SText("0-" + minimum.map(_.toString).getOrElse("infinity"))
 
     override def checkSolution(input: String): CheckResult = {
-      val range = """([0-9]+)\s*[-–]\s*([0-9]+|inf|infinity|∞)""".r
+      val range = """([0-9]+)\s*[-–]\s*([0-9]+|inf|infinity)""".r
       compact(input) match {
         case range(lower, upper) =>
           val lowerValue = lower.toDouble

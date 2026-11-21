@@ -73,7 +73,7 @@ class HeuristicSearchGradingTest extends AnyFunSuite {
     assert(p.admissibleRange.check("4").isInstanceOf[MalformedInput])
     p.optimalCost.node = "D"
     p.admissibleRange.node = "D"
-    for (infinity <- List("infinity", "inf", "∞")) {
+    for (infinity <- List("infinity", "inf")) {
       assert(p.optimalCost.check(infinity) == Correct())
       assert(p.admissibleRange.check("0-" + infinity) == Correct())
     }
