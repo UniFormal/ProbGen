@@ -73,7 +73,7 @@ class HeuristicSearchGradingTest extends AnyFunSuite {
     assert(p.admissibleRange.check("4").isInstanceOf[MalformedInput])
     p.optimalCost.node = "D"
     p.admissibleRange.node = "D"
-    for (infinity <- List("infinity", "inf")) {
+    for (infinity <- List("infinity", "inf", "∞", "Infinity")) {
       assert(p.optimalCost.check(infinity) == Correct())
       assert(p.admissibleRange.check("0-" + infinity) == Correct())
     }
@@ -85,5 +85,10 @@ class HeuristicSearchGradingTest extends AnyFunSuite {
     assert(inconsistent.consistency.check("b c") == Correct())
     assert(inconsistent.consistency.check("yes").isInstanceOf[Incorrect])
     assert(inconsistent.consistency.check("CB").isInstanceOf[MalformedInput])
+    for (answer <- List("no, BC", "No: B->C", "no B→C", "B -> C", "(B, C)", "⟨B,C⟩", "B,C", "no - BC", "NO. bc"))
+      assert(inconsistent.consistency.check(answer) == Correct(), answer)
+    assert(inconsistent.consistency.check("no, AB").isInstanceOf[Incorrect])   // a consistent edge
+    assert(inconsistent.consistency.check("no").isInstanceOf[MalformedInput])  // no counterexample given
+    assert(inconsistent.consistency.check("no, it is not").isInstanceOf[MalformedInput])
   }
 }

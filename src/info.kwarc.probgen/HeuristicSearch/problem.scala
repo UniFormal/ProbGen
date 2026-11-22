@@ -16,7 +16,7 @@ case class HeuristicSearchProblem(graph: HeuristicSearchGraph, positions: Map[St
     def question() = x"${algorithm.title}"
     def solution() = SText(expected.mkString(", "))
 
-    override def checkSolution(input: String): CheckResult = {
+    override def grader: Option[Grader] = Some { input =>
       val compact = input.filterNot(c => c.isWhitespace || Character.isSpaceChar(c))
       val normalized =
         if (compact.matches("[A-Za-z]+")) compact.toList.mkString(",")
@@ -40,6 +40,9 @@ case class HeuristicSearchProblem(graph: HeuristicSearchGraph, positions: Map[St
   private def saysInfinity(input: String): Boolean =
     Set("inf", "infinity", "∞").contains(compact(input))
 
+  /** one directed edge, optionally after "no": AB, A->B, A→B, (A,B), "no, AB", "No: A->B", ... */
+  private val edgeAnswer = """(?:no[,:;.\-]*)?[(⟨]?([a-z])(?:->|→|=>|,|-)?([a-z])[)⟩]?""".r
+
   abstract class NodeQuestion(id: String) extends Subproblem(id, 2, 2) {
     var node: String = ""
     override def init(): Unit =
@@ -52,14 +55,16 @@ case class HeuristicSearchProblem(graph: HeuristicSearchGraph, positions: Map[St
     def question() = x"Give the value of h*(${node})"
     def solution() = SText(minimum.map(_.toString).getOrElse("infinity"))
 
-    override def checkSolution(input: String): CheckResult = minimum match {
-      case Some(value) =>
-        if (saysInfinity(input)) Incorrect("The goal is reachable from this node.")
-        else NumberGrader(value, tol = 0).grade(input)
-      case None =>
-        if (saysInfinity(input)) Correct()
-        else Grader.onParsed(NumberGrader.parse(input))(_ =>
-          Incorrect("The goal cannot be reached from this node, so its remaining cost is infinite."))
+    override def grader: Option[Grader] = Some { input =>
+      minimum match {
+        case Some(value) =>
+          if (saysInfinity(input)) Incorrect("The goal is reachable from this node.")
+          else NumberGrader(value, tol = 0).grade(input)
+        case None =>
+          if (saysInfinity(input)) Correct()
+          else Grader.onParsed(NumberGrader.parse(input))(_ =>
+            Incorrect("The goal cannot be reached from this node, so its remaining cost is infinite."))
+      }
     }
   }
 
@@ -69,8 +74,8 @@ case class HeuristicSearchProblem(graph: HeuristicSearchGraph, positions: Map[St
       x"What nonnegative values of h(${node}) keep h admissible?"
     def solution() = SText("0-" + minimum.map(_.toString).getOrElse("infinity"))
 
-    override def checkSolution(input: String): CheckResult = {
-      val range = """([0-9]+)\s*[-–]\s*([0-9]+|inf|infinity)""".r
+    override def grader: Option[Grader] = Some { input =>
+      val range = """([0-9]+)[-–]([0-9]+|inf|infinity|∞)""".r
       compact(input) match {
         case range(lower, upper) =>
           val lowerValue = lower.toDouble
@@ -83,7 +88,7 @@ case class HeuristicSearchProblem(graph: HeuristicSearchGraph, positions: Map[St
   }
 
   object consistency extends Subproblem("consistency", 2, 2) {
-    override def answerHint = "yes or a counter example, e.g. AB"
+    override def answerHint = "yes, or a counterexample edge, e.g. no, B->C"
     def question() =
       x"Is the heuristic consistent? Answer yes if it is and give a counter example if it is not."
     def solution() =
@@ -91,19 +96,22 @@ case class HeuristicSearchProblem(graph: HeuristicSearchGraph, positions: Map[St
       else SText("No. Valid counterexamples include " +
         graph.inconsistentEdges.map(edge => edge.from + edge.to).mkString(", ") + ".")
 
-    override def checkSolution(input: String): CheckResult = {
-      val answer = compact(input)
-      if (answer == "yes") {
-        if (graph.inconsistentEdges.isEmpty) Correct()
-        else Incorrect("At least one edge violates the consistency inequality.")
-      } else if (answer.matches("[a-z]{2}")) {
-        val from = answer.take(1).toUpperCase
-        val to = answer.drop(1).toUpperCase
-        if (!graph.edges.exists(edge => edge.from == from && edge.to == to))
-          MalformedInput("That directed edge does not exist in this graph.")
-        else if (graph.inconsistentEdges.exists(edge => edge.from == from && edge.to == to)) Correct()
-        else Incorrect("This edge satisfies the consistency inequality.")
-      } else MalformedInput("Answer yes or give one directed edge such as BC as a counterexample.")
+    override def grader: Option[Grader] = Some { input =>
+      compact(input) match {
+        case "yes" =>
+          if (graph.inconsistentEdges.isEmpty) Correct()
+          else Incorrect("At least one edge violates the consistency inequality.")
+        case "no" | "no." =>
+          MalformedInput("Please also give a counterexample: one directed edge such as BC.")
+        case edgeAnswer(f, t) =>
+          val (from, to) = (f.toUpperCase, t.toUpperCase)
+          if (!graph.edges.exists(edge => edge.from == from && edge.to == to))
+            MalformedInput("That directed edge does not exist in this graph.")
+          else if (graph.inconsistentEdges.exists(edge => edge.from == from && edge.to == to)) Correct()
+          else Incorrect("This edge satisfies the consistency inequality.")
+        case _ =>
+          MalformedInput("Answer yes, or give one directed edge as a counterexample, e.g. BC or no, B->C.")
+      }
     }
   }
 
