@@ -29,7 +29,15 @@ case class HeuristicSearchProblem(graph: HeuristicSearchGraph, positions: Map[St
       }
       Grader.onParsed(parsed) { answer =>
         if (answer == expected) Correct()
-        else Incorrect("Check the expansion order. Start after A, break ties alphabetically, and expand each node only once.")
+        else {
+          val prefix = answer.zip(expected).takeWhile { case (actual, correct) => actual == correct }.size
+          // Full credit requires the complete answer, including stopping at the goal.
+          val credited = math.min(prefix, expected.size - 1)
+          val points = if (pts == 1) (credited / 2) * 0.5 else credited * 0.5
+          val hint = "Check the expansion order. Start after A, break ties alphabetically, and expand each node only once."
+          if (points > 0) PartiallyCorrect(points / pts, hint)
+          else Incorrect(hint)
+        }
       }
     }
   }
