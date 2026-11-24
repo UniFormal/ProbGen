@@ -53,6 +53,35 @@ class HeuristicSearchGradingTest extends AnyFunSuite {
     }
   }
 
+  test("partial credit counts only the correct prefix and uses half-point awards") {
+    def chain(names: List[String]) = HeuristicSearchProblem(
+      HeuristicSearchGraph(names.map(n => HeuristicSearchNode(n, Some(0))),
+        names.zip(names.tail).map { case (from, to) => HeuristicSearchEdge(from, to, Some(1)) }, "A"),
+      names.zipWithIndex.map { case (name, index) => name -> (0.0, index.toDouble) }.toMap)
+    val p = chain(List("A", "B", "C", "D", "E"))
+    for (q <- p.questions; prefix <- 0 to 3) {
+      val answer = q.expected.take(prefix) ++ List.fill(4 - prefix)("A")
+      val expectedPoints = if (q.pts == 1) List(0.0, 0.0, 0.5, 0.5)(prefix) else prefix * 0.5
+      for (typed <- List(answer.mkString, answer.mkString(", "))) {
+        val result = q.check(typed)
+        assert(q.awardedPoints(result) == expectedPoints)
+        if (expectedPoints > 0) {
+          assert(result.isInstanceOf[PartiallyCorrect])
+          assert(result.messageHtml(q.pts).contains(Scoring.points(expectedPoints) + " of"))
+        } else assert(result.isInstanceOf[Incorrect])
+      }
+      assert(q.check("BCDE") == Correct())
+      assert(q.awardedPoints(q.check("BCDEA")) == (if (q.pts == 1) 0.5 else 1.5))
+      assert(q.check("BZDE").isInstanceOf[MalformedInput])
+    }
+    for (q <- chain(List("A", "B", "C")).questions) {
+      assert(q.check("BC") == Correct())
+      assert(q.awardedPoints(q.check("BC")) == q.pts)
+      assert(q.awardedPoints(q.check("B")) == (if (q.pts == 1) 0.0 else 0.5))
+      assert(q.check("BCA") != Correct())
+    }
+  }
+
   test("heuristic grading handles finite ranges, unreachable goals, and consistency violations") {
     def problem(hB: Int) = HeuristicSearchProblem(
       HeuristicSearchGraph(
